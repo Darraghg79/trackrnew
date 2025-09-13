@@ -6,18 +6,20 @@ import { JumpEntryForm } from './jump-entry-form'
 import { SummaryTab } from './summary-tab'
 import { SettingsTab } from './settings-tab'
 import { WorkJumpsTab } from './work-jumps-tab'
+import { JumpSigningFlow } from './jump-signing-flow'
 import { Button } from './ui/button'
-import type { Invoice, JumpRecord } from './types'
+import type { Invoice, JumpRecord, JumpSignature } from './types'
 import { DROPZONE_DATABASE, AIRCRAFT_DATABASE } from '@/lib/dropzone-data'
 import InvoiceDetailView from './invoice-detail-view'
 
 /**
- * MainTracker Component - FIXED VERSION
+ * MainTracker Component - FIXED VERSION WITH SIGNATURES
  * 
  * Fixes:
  * - Preserves invoice tracking fields when editing jumps
  * - Prevents duplicate invoicing of services
  * - Properly tracks which services have been invoiced
+ * - Includes full signature functionality for jump certification
  */
 export function MainTracker() {
   // ============================================
@@ -27,6 +29,13 @@ export function MainTracker() {
   const [showForm, setShowForm] = useState(false)
   const [editingJump, setEditingJump] = useState<number | null>(null)
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null)
+  
+  // ============================================
+  // Signature State
+  // ============================================
+  const [showSigningFlow, setShowSigningFlow] = useState(false)
+  const [selectedJumpsForSigning, setSelectedJumpsForSigning] = useState<number[]>([])
+  const [isSelectMode, setIsSelectMode] = useState(false)
 
   // ============================================
   // Jump Data State - Enhanced with proper invoice tracking
@@ -91,7 +100,11 @@ export function MainTracker() {
       : 1,
     currentFreefallTime: 0,
     freefallTimeAuditLog: [],
-    jumpCountAuditLog: []
+    jumpCountAuditLog: [],
+    instructorInfo: {
+      name: "Your Name",
+      address: "Your Address"
+    }
   })
 
   // ============================================
@@ -120,7 +133,7 @@ export function MainTracker() {
 
   /**
    * FIXED: Saves a new jump or updates an existing one
-   * Now preserves invoice tracking fields when editing
+   * Now preserves invoice tracking fields and signature when editing
    */
   const handleSaveJump = (jumpData: any) => {
     console.log('Saving jump:', jumpData)
@@ -134,16 +147,17 @@ export function MainTracker() {
     }
 
     if (editingJump !== null) {
-      // FIXED: Preserve invoice tracking fields when editing
+      // FIXED: Preserve invoice tracking fields AND signature when editing
       const existingJump = savedJumps[editingJump]
       
-      // Preserve all invoice-related fields that shouldn't be editable
+      // Preserve all invoice-related fields and signature that shouldn't be editable
       const preservedFields = {
         invoicedServices: existingJump.invoicedServices || [],
         pendingInvoiceServices: existingJump.pendingInvoiceServices || [],
         invoiceIds: existingJump.invoiceIds || [],
         invoiceStatus: existingJump.invoiceStatus || 'unbilled',
-        invoiceId: existingJump.invoiceId // Legacy single ID field
+        invoiceId: existingJump.invoiceId, // Legacy single ID field
+        signature: existingJump.signature // Preserve signature when editing
       }
       
       // Merge the new data with preserved fields
@@ -156,7 +170,7 @@ export function MainTracker() {
       updated[editingJump] = updatedJump
       setSavedJumps(updated)
       
-      console.log('Jump updated with preserved invoice data:', updatedJump)
+      console.log('Jump updated with preserved invoice and signature data:', updatedJump)
     } else {
       // New jump - initialize invoice tracking fields
       const newJump = {
@@ -165,7 +179,8 @@ export function MainTracker() {
         pendingInvoiceServices: [],
         invoiceIds: [],
         invoiceStatus: 'unbilled',
-        invoiceId: null
+        invoiceId: null,
+        signature: undefined // No signature on new jumps
       }
       setSavedJumps([...savedJumps, newJump])
       console.log('New jump saved:', newJump)
@@ -184,6 +199,69 @@ export function MainTracker() {
     if (confirm('Are you sure you want to delete this jump?')) {
       setSavedJumps(savedJumps.filter((_, i) => i !== index))
     }
+  }
+
+  // ============================================
+  // Signature Management Functions
+  // ============================================
+
+  /**
+   * Toggles jump selection for signing
+   */
+  const handleToggleJumpSelection = (jumpNumber: number) => {
+    setSelectedJumpsForSigning(prev => {
+      if (prev.includes(jumpNumber)) {
+        return prev.filter(num => num !== jumpNumber)
+      }
+      return [...prev, jumpNumber]
+    })
+  }
+
+  /**
+   * Selects all jumps for signing
+   */
+  const handleSelectAllJumps = () => {
+    if (selectedJumpsForSigning.length === savedJumps.length) {
+      setSelectedJumpsForSigning([])
+    } else {
+      setSelectedJumpsForSigning(savedJumps.map(j => j.jumpNumber))
+    }
+  }
+
+  /**
+   * Handles signature completion - adds signature to selected jumps
+   */
+  const handleSignatureComplete = (signature: JumpSignature, jumpNumbers: number[]) => {
+    const updatedJumps = savedJumps.map(jump => {
+      if (jumpNumbers.includes(jump.jumpNumber)) {
+        return {
+          ...jump,
+          signature: {
+            ...signature,
+            signedBy: appSettings.instructorInfo?.name || 'Instructor'
+          }
+        }
+      }
+      return jump
+    })
+    
+    setSavedJumps(updatedJumps)
+    setShowSigningFlow(false)
+    setSelectedJumpsForSigning([])
+    setIsSelectMode(false)
+    
+    alert(`Successfully signed ${jumpNumbers.length} jump(s)`)
+  }
+
+  /**
+   * Initiates the signing flow for selected jumps
+   */
+  const handleStartSigning = () => {
+    if (selectedJumpsForSigning.length === 0) {
+      alert('Please select at least one jump to sign')
+      return
+    }
+    setShowSigningFlow(true)
   }
 
   // ============================================
@@ -578,6 +656,25 @@ export function MainTracker() {
   }
 
   // ============================================
+  // Render Signature Flow
+  // ============================================
+
+  if (showSigningFlow) {
+    return (
+      <JumpSigningFlow
+        jumps={savedJumps}
+        selectedJumpNumbers={selectedJumpsForSigning}
+        onComplete={handleSignatureComplete}
+        onCancel={() => {
+          setShowSigningFlow(false)
+          setSelectedJumpsForSigning([])
+          setIsSelectMode(false)
+        }}
+      />
+    )
+  }
+
+  // ============================================
   // Main Application Render
   // ============================================
 
@@ -591,12 +688,50 @@ export function MainTracker() {
             <h1 className="text-3xl font-bold text-center py-8">TrackR</h1>
             <p className="text-center text-gray-600 mb-8">Jump, Track, Get Paid</p>
 
-            <Button
-              onClick={() => setShowForm(true)}
-              className="w-full mb-6 bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              Add New Jump
-            </Button>
+            <div className="space-y-3 mb-6">
+              <Button
+                onClick={() => setShowForm(true)}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                Add New Jump
+              </Button>
+              
+              {savedJumps.length > 0 && (
+                <div className="flex gap-2">
+                  <Button
+                    onClick={() => {
+                      setIsSelectMode(!isSelectMode)
+                      if (isSelectMode) {
+                        setSelectedJumpsForSigning([])
+                      }
+                    }}
+                    variant={isSelectMode ? "default" : "outline"}
+                    className={isSelectMode ? "flex-1 bg-green-600 hover:bg-green-700" : "flex-1"}
+                  >
+                    {isSelectMode ? "Cancel Selection" : "Select Jumps to Sign"}
+                  </Button>
+                  
+                  {isSelectMode && (
+                    <>
+                      <Button
+                        onClick={handleSelectAllJumps}
+                        variant="outline"
+                        className="flex-1"
+                      >
+                        {selectedJumpsForSigning.length === savedJumps.length ? "Deselect All" : "Select All"}
+                      </Button>
+                      <Button
+                        onClick={handleStartSigning}
+                        className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                        disabled={selectedJumpsForSigning.length === 0}
+                      >
+                        Sign Selected ({selectedJumpsForSigning.length})
+                      </Button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
 
             {savedJumps.length > 0 ? (
               <div>
@@ -604,30 +739,63 @@ export function MainTracker() {
                   Total: {savedJumps.length} jumps
                   ({savedJumps.filter(j => j.workJump).length} work,
                   {savedJumps.filter(j => !j.workJump).length} fun)
+                  {savedJumps.filter(j => j.signature).length > 0 && 
+                    ` • ${savedJumps.filter(j => j.signature).length} signed`}
                 </p>
                 <div className="space-y-3">
                   {savedJumps.map((jump, index) => (
-                    <div key={jump.id} className="bg-white p-4 rounded-lg shadow-sm border">
+                    <div 
+                      key={jump.id} 
+                      className={`bg-white p-4 rounded-lg shadow-sm border ${
+                        isSelectMode && selectedJumpsForSigning.includes(jump.jumpNumber) 
+                          ? 'border-green-500 bg-green-50' 
+                          : ''
+                      }`}
+                      onClick={() => {
+                        if (isSelectMode) {
+                          handleToggleJumpSelection(jump.jumpNumber)
+                        }
+                      }}
+                      style={{ cursor: isSelectMode ? 'pointer' : 'default' }}
+                    >
                       <div className="flex justify-between items-start mb-2">
-                        <span className="font-medium">Jump #{jump.jumpNumber}</span>
-                        <div className="space-x-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEditJump(index)}
-                            className="text-blue-600"
-                          >
-                            Edit
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDeleteJump(index)}
-                            className="text-red-600"
-                          >
-                            Delete
-                          </Button>
+                        <div className="flex items-center gap-2">
+                          {isSelectMode && (
+                            <input
+                              type="checkbox"
+                              checked={selectedJumpsForSigning.includes(jump.jumpNumber)}
+                              onChange={() => handleToggleJumpSelection(jump.jumpNumber)}
+                              onClick={(e) => e.stopPropagation()}
+                              className="w-4 h-4 text-green-600"
+                            />
+                          )}
+                          <span className="font-medium">Jump #{jump.jumpNumber}</span>
+                          {jump.signature && (
+                            <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
+                              ✓ Signed
+                            </span>
+                          )}
                         </div>
+                        {!isSelectMode && (
+                          <div className="space-x-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEditJump(index)}
+                              className="text-blue-600"
+                            >
+                              Edit
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteJump(index)}
+                              className="text-red-600"
+                            >
+                              Delete
+                            </Button>
+                          </div>
+                        )}
                       </div>
                       <div className="text-sm text-gray-600">
                         <p>{jump.dropZone} • {jump.jumpType}</p>
@@ -664,6 +832,12 @@ export function MainTracker() {
                           </div>
                         ) : (
                           <p className="text-green-600 mt-1">🎉 Fun Jump</p>
+                        )}
+                        {jump.signature && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            Signed: {new Date(jump.signature.signedDate).toLocaleDateString()} • 
+                            Licence: {jump.signature.licenceNumber}
+                          </p>
                         )}
                         {jump.notes && (
                           <p className="text-gray-500 mt-1 italic">{jump.notes}</p>
