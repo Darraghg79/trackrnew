@@ -29,7 +29,7 @@ export function MainTracker() {
   const [showForm, setShowForm] = useState(false)
   const [editingJump, setEditingJump] = useState<number | null>(null)
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null)
-  
+
   // ============================================
   // Signature State
   // ============================================
@@ -128,6 +128,42 @@ export function MainTracker() {
   })
 
   // ============================================
+  // Helper Functions
+  // ============================================
+
+  // Find the next available jump number (fills gaps from deletions)
+  const getNextJumpNumber = () => {
+    if (savedJumps.length === 0) {
+      // If no jumps exist, use settings value + 1
+      return appSettings.currentJumpNumber + 1
+    }
+    
+    // Get all existing jump numbers and sort them
+    const existingNumbers = savedJumps
+      .map(j => j.jumpNumber)
+      .sort((a, b) => a - b)
+    
+    const highestExisting = existingNumbers[existingNumbers.length - 1]
+    
+    // If settings indicates we should be at a higher number, use it
+    // This handles the case where user manually sets a high number in settings
+    if (appSettings.currentJumpNumber >= highestExisting) {
+      return appSettings.currentJumpNumber + 1
+    }
+    
+    // Only look for gaps if we're not jumping ahead via settings
+    // Check for gaps in the sequence
+    for (let i = 1; i <= highestExisting; i++) {
+      if (!existingNumbers.includes(i)) {
+        return i // Return the first gap found
+      }
+    }
+    
+    // No gaps found, return the next number after the highest
+    return highestExisting + 1
+  }
+
+  // ============================================
   // FIXED: Jump Management Functions
   // ============================================
 
@@ -149,7 +185,7 @@ export function MainTracker() {
     if (editingJump !== null) {
       // FIXED: Preserve invoice tracking fields AND signature when editing
       const existingJump = savedJumps[editingJump]
-      
+
       // Preserve all invoice-related fields and signature that shouldn't be editable
       const preservedFields = {
         invoicedServices: existingJump.invoicedServices || [],
@@ -159,17 +195,17 @@ export function MainTracker() {
         invoiceId: existingJump.invoiceId, // Legacy single ID field
         signature: existingJump.signature // Preserve signature when editing
       }
-      
+
       // Merge the new data with preserved fields
       const updatedJump = {
         ...completeJumpData,
         ...preservedFields
       }
-      
+
       const updated = [...savedJumps]
       updated[editingJump] = updatedJump
       setSavedJumps(updated)
-      
+
       console.log('Jump updated with preserved invoice and signature data:', updatedJump)
     } else {
       // New jump - initialize invoice tracking fields
@@ -183,9 +219,18 @@ export function MainTracker() {
         signature: undefined // No signature on new jumps
       }
       setSavedJumps([...savedJumps, newJump])
+      
+      // Update settings if this jump number is higher than current setting
+      if (newJump.jumpNumber > appSettings.currentJumpNumber) {
+        setAppSettings(prev => ({
+          ...prev,
+          currentJumpNumber: newJump.jumpNumber
+        }))
+      }
+      
       console.log('New jump saved:', newJump)
     }
-    
+
     setShowForm(false)
     setEditingJump(null)
   }
@@ -195,9 +240,29 @@ export function MainTracker() {
     setShowForm(true)
   }
 
-  const handleDeleteJump = (index: number) => {
+const handleDeleteJump = (index: number) => {
     if (confirm('Are you sure you want to delete this jump?')) {
-      setSavedJumps(savedJumps.filter((_, i) => i !== index))
+      const updatedJumps = savedJumps.filter((_, i) => i !== index)
+      setSavedJumps(updatedJumps)
+      
+      // Update settings when deleting jumps
+      if (updatedJumps.length === 0) {
+        // No jumps left, reset to 0
+        setAppSettings(prev => ({
+          ...prev,
+          currentJumpNumber: 0
+        }))
+      } else {
+        // Find the new highest jump number
+        const newHighest = Math.max(...updatedJumps.map(j => j.jumpNumber || 0))
+        // Only update if the deleted jump was affecting the highest number
+        if (newHighest < appSettings.currentJumpNumber) {
+          setAppSettings(prev => ({
+            ...prev,
+            currentJumpNumber: newHighest
+          }))
+        }
+      }
     }
   }
 
@@ -244,12 +309,12 @@ export function MainTracker() {
       }
       return jump
     })
-    
+
     setSavedJumps(updatedJumps)
     setShowSigningFlow(false)
     setSelectedJumpsForSigning([])
     setIsSelectMode(false)
-    
+
     alert(`Successfully signed ${jumpNumbers.length} jump(s)`)
   }
 
@@ -296,17 +361,17 @@ export function MainTracker() {
     const invoiceItems = workJumps.flatMap(jump => {
       // Get services that have been permanently invoiced
       const invoicedServices = jump.invoicedServices || []
-      
+
       // Get services currently in a draft invoice (shouldn't happen but check anyway)
       const pendingServices = jump.pendingInvoiceServices || []
-      
+
       // Filter to only truly uninvoiced services
       const availableServices = (jump.invoiceItems || []).filter(
         service => !invoicedServices.includes(service) && !pendingServices.includes(service)
       )
-      
+
       console.log(`Jump ${jump.jumpNumber}: Total services: ${jump.invoiceItems}, Already invoiced: ${invoicedServices}, Available: ${availableServices}`)
-      
+
       // Create invoice items only for available services
       return availableServices.map(service => ({
         workJumpIds: [jump.id],
@@ -352,10 +417,10 @@ export function MainTracker() {
         const jumpInvoiceItems = invoiceItems
           .filter(item => item.workJumpIds.includes(jump.id))
           .map(item => item.service)
-        
+
         // Add this invoice ID to the jump's invoice history
         const updatedInvoiceIds = [...(jump.invoiceIds || []), newInvoice.id]
-        
+
         return {
           ...jump,
           invoiceId: newInvoice.id, // Legacy field
@@ -378,7 +443,7 @@ export function MainTracker() {
    */
   const handleLockInvoice = (invoiceId: string) => {
     console.log('Locking invoice:', invoiceId)
-    
+
     // Update invoice status
     const updatedInvoices = invoices.map(inv =>
       inv.id === invoiceId
@@ -395,9 +460,9 @@ export function MainTracker() {
           ...(jump.invoicedServices || []),
           ...(jump.pendingInvoiceServices || [])
         ]
-        
+
         console.log(`Jump ${jump.jumpNumber}: Moving services to invoiced:`, jump.pendingInvoiceServices)
-        
+
         return {
           ...jump,
           invoiceStatus: 'locked' as const,
@@ -420,7 +485,7 @@ export function MainTracker() {
    */
   const handleSendInvoice = (invoiceId: string) => {
     console.log('Sending invoice:', invoiceId)
-    
+
     // Update invoice status
     const updatedInvoices = invoices.map(inv =>
       inv.id === invoiceId
@@ -474,15 +539,15 @@ export function MainTracker() {
    */
   const handleReopenInvoice = (invoiceId: string) => {
     console.log('Reopening invoice:', invoiceId)
-    
+
     const invoice = invoices.find(inv => inv.id === invoiceId)
     if (!invoice) return
 
     // Check if drop zone already has an open invoice
     const hasOtherOpenInvoice = invoices.some(
-      inv => inv.dropZone === invoice.dropZone && 
-             inv.status === 'draft' && 
-             inv.id !== invoiceId
+      inv => inv.dropZone === invoice.dropZone &&
+        inv.status === 'draft' &&
+        inv.id !== invoiceId
     )
 
     if (hasOtherOpenInvoice) {
@@ -505,14 +570,14 @@ export function MainTracker() {
         const invoiceServices = invoice.items
           .filter(item => item.workJumpIds.includes(jump.id))
           .map(item => item.service)
-        
+
         // Remove these services from permanently invoiced and add to pending
         const remainingInvoiced = (jump.invoicedServices || []).filter(
           service => !invoiceServices.includes(service)
         )
-        
+
         console.log(`Jump ${jump.jumpNumber}: Moving services from invoiced back to pending:`, invoiceServices)
-        
+
         return {
           ...jump,
           invoiceStatus: 'draft' as const,
@@ -533,7 +598,7 @@ export function MainTracker() {
    */
   const handleDeleteOpenInvoice = (invoiceId: string) => {
     console.log('Deleting invoice:', invoiceId)
-    
+
     const invoice = invoices.find(inv => inv.id === invoiceId)
     if (!invoice || invoice.status !== 'draft') {
       alert('Only draft invoices can be deleted')
@@ -552,12 +617,12 @@ export function MainTracker() {
       if (jump.invoiceIds?.includes(invoiceId) || jump.invoiceId === invoiceId) {
         // Remove this invoice from the jump's invoice history
         const updatedInvoiceIds = (jump.invoiceIds || []).filter(id => id !== invoiceId)
-        
+
         // Determine new status based on remaining invoices
         let newStatus: 'unbilled' | 'draft' | 'locked' | 'sent' | 'paid' = 'unbilled'
         if (updatedInvoiceIds.length > 0) {
           // Check status of other invoices this jump is part of
-          const otherInvoices = invoices.filter(inv => 
+          const otherInvoices = invoices.filter(inv =>
             updatedInvoiceIds.includes(inv.id) && inv.id !== invoiceId
           )
           if (otherInvoices.some(inv => inv.status === 'paid')) newStatus = 'paid'
@@ -565,9 +630,9 @@ export function MainTracker() {
           else if (otherInvoices.some(inv => inv.status === 'locked')) newStatus = 'locked'
           else if (otherInvoices.some(inv => inv.status === 'draft')) newStatus = 'draft'
         }
-        
+
         console.log(`Jump ${jump.jumpNumber}: Removing from invoice, clearing pending services`)
-        
+
         return {
           ...jump,
           invoiceId: updatedInvoiceIds.length > 0 ? updatedInvoiceIds[updatedInvoiceIds.length - 1] : null,
@@ -611,12 +676,11 @@ export function MainTracker() {
   // Computed Values
   // ============================================
 
-  const currentJumpNumber = savedJumps.length > 0
-    ? Math.max(...savedJumps.map(j => j.jumpNumber || 0)) + 1
-    : 1
+  // Get the next available jump number (fills gaps)
+  const nextAvailableJumpNumber = getNextJumpNumber()
 
-  const lastJumpData = savedJumps.length > 0 
-    ? savedJumps[savedJumps.length - 1] 
+  const lastJumpData = savedJumps.length > 0
+    ? savedJumps[savedJumps.length - 1]
     : null
 
   // ============================================
@@ -626,9 +690,9 @@ export function MainTracker() {
   if (showForm && activeTab === 'jumps') {
     const initialData = editingJump !== null
       ? {
-          ...savedJumps[editingJump],
-          date: new Date(savedJumps[editingJump].date)
-        }
+        ...savedJumps[editingJump],
+        date: new Date(savedJumps[editingJump].date)
+      }
       : null
 
     return (
@@ -647,7 +711,7 @@ export function MainTracker() {
           jumpTypeOptions={jumpTypeOptions}
           gearOptions={gearOptions}
           invoiceSettings={invoiceSettings}
-          currentJumpNumber={currentJumpNumber}
+          currentJumpNumber={nextAvailableJumpNumber - 1}
           appSettings={appSettings}
         />
         <BottomNavigation activeTab={activeTab} onTabChange={setActiveTab} />
@@ -695,7 +759,7 @@ export function MainTracker() {
               >
                 Add New Jump
               </Button>
-              
+
               {savedJumps.length > 0 && (
                 <div className="flex gap-2">
                   <Button
@@ -710,7 +774,7 @@ export function MainTracker() {
                   >
                     {isSelectMode ? "Cancel Selection" : "Select Jumps to Sign"}
                   </Button>
-                  
+
                   {isSelectMode && (
                     <>
                       <Button
@@ -739,18 +803,17 @@ export function MainTracker() {
                   Total: {savedJumps.length} jumps
                   ({savedJumps.filter(j => j.workJump).length} work,
                   {savedJumps.filter(j => !j.workJump).length} fun)
-                  {savedJumps.filter(j => j.signature).length > 0 && 
+                  {savedJumps.filter(j => j.signature).length > 0 &&
                     ` • ${savedJumps.filter(j => j.signature).length} signed`}
                 </p>
                 <div className="space-y-3">
                   {savedJumps.map((jump, index) => (
-                    <div 
-                      key={jump.id} 
-                      className={`bg-white p-4 rounded-lg shadow-sm border ${
-                        isSelectMode && selectedJumpsForSigning.includes(jump.jumpNumber) 
-                          ? 'border-green-500 bg-green-50' 
-                          : ''
-                      }`}
+                    <div
+                      key={jump.id}
+                      className={`bg-white p-4 rounded-lg shadow-sm border ${isSelectMode && selectedJumpsForSigning.includes(jump.jumpNumber)
+                        ? 'border-green-500 bg-green-50'
+                        : ''
+                        }`}
                       onClick={() => {
                         if (isSelectMode) {
                           handleToggleJumpSelection(jump.jumpNumber)
@@ -805,12 +868,11 @@ export function MainTracker() {
                               💼 Work Jump: {jump.customerName}
                             </p>
                             {jump.invoiceStatus && jump.invoiceStatus !== 'unbilled' && (
-                              <p className={`text-xs mt-1 ${
-                                jump.invoiceStatus === 'sent' ? 'text-green-600' :
+                              <p className={`text-xs mt-1 ${jump.invoiceStatus === 'sent' ? 'text-green-600' :
                                 jump.invoiceStatus === 'locked' ? 'text-orange-600' :
-                                jump.invoiceStatus === 'draft' ? 'text-yellow-600' :
-                                'text-gray-600'
-                              }`}>
+                                  jump.invoiceStatus === 'draft' ? 'text-yellow-600' :
+                                    'text-gray-600'
+                                }`}>
                                 Invoice Status: {jump.invoiceStatus}
                               </p>
                             )}
@@ -835,7 +897,7 @@ export function MainTracker() {
                         )}
                         {jump.signature && (
                           <p className="text-xs text-gray-500 mt-1">
-                            Signed: {new Date(jump.signature.signedDate).toLocaleDateString()} • 
+                            Signed: {new Date(jump.signature.signedDate).toLocaleDateString()} •
                             Licence: {jump.signature.licenceNumber}
                           </p>
                         )}
@@ -887,7 +949,7 @@ export function MainTracker() {
             }}
             onLock={() => {
               const newStatus = selectedInvoice.status === 'draft' ? 'locked' : 'draft'
-              
+
               if (newStatus === 'locked') {
                 handleLockInvoice(selectedInvoice.id)
               } else {
