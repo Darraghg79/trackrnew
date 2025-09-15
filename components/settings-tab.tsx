@@ -7,9 +7,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
-import { InvoiceSettingsIcon } from "@/components/icons/invoice-settings-icon"
-import { DropzoneIcon } from "@/components/icons/dropzone-icon"
-import { PreferencesIcon } from "@/components/icons/preferences-icon"
 import type { InvoiceSettings, DropZoneBillingDetails } from "@/types/invoice"
 import type { AppSettings, JumpCountAudit, FreefallTimeAudit } from "@/types/settings"
 import type { JumpRecord } from "@/types/jump-record"
@@ -47,6 +44,15 @@ interface SettingsTabProps {
   onUnitsChange: (newUnits: "feet" | "meters") => void
 }
 
+type SettingsSection = 
+  | "main"
+  | "profile"
+  | "invoice"
+  | "logbook"
+  | "gear"
+  | "experience"
+  | "data"
+
 export const SettingsTab: React.FC<SettingsTabProps> = ({
   invoiceSettings,
   onUpdateSettings,
@@ -72,7 +78,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   onUpdateJumpsJumpType,
   onUnitsChange,
 }) => {
-  const [activeSection, setActiveSection] = useState<"invoice" | "jump" | "preferences">("invoice")
+  const [activeSection, setActiveSection] = useState<SettingsSection>("main")
   const [tempInvoiceSettings, setTempInvoiceSettings] = useState(invoiceSettings)
   const [tempAppSettings, setTempAppSettings] = useState(appSettings)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
@@ -556,18 +562,216 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     onUpdateJumpTypeOptions(updatedOptions)
   }
 
-  const navigationItems = [
-    { id: "invoice" as const, label: "Invoice Settings", icon: InvoiceSettingsIcon },
-    { id: "jump" as const, label: "Jump Settings", icon: DropzoneIcon },
-    { id: "preferences" as const, label: "Preferences", icon: PreferencesIcon },
-  ]
+  // Simple icon components (you can replace with actual icons later)
+  const UserIcon = () => (
+    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+    </svg>
+  )
 
-  const renderInvoiceSettings = () => (
+  const DollarIcon = () => (
+    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  )
+
+  const LocationIcon = () => (
+    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+    </svg>
+  )
+
+  const SettingsIcon = () => (
+    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+    </svg>
+  )
+
+  const BoxIcon = () => (
+    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+    </svg>
+  )
+
+  const DatabaseIcon = () => (
+    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+    </svg>
+  )
+
+  const ClockIcon = () => (
+    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  )
+
+  const renderMainMenu = () => (
+    <div className="space-y-4">
+      {/* Profile Settings */}
+      <button
+        onClick={() => setActiveSection("profile")}
+        className="w-full p-4 bg-white rounded-lg border border-gray-200 hover:border-blue-400 hover:shadow-md transition-all text-left"
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <div className="p-2 bg-blue-50 rounded-lg">
+              <UserIcon />
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-900">Profile Settings</h3>
+              <p className="text-sm text-gray-500">Name, address, units, and date format</p>
+            </div>
+          </div>
+          <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </div>
+      </button>
+
+      {/* Invoice Settings */}
+      <button
+        onClick={() => setActiveSection("invoice")}
+        className="w-full p-4 bg-white rounded-lg border border-gray-200 hover:border-blue-400 hover:shadow-md transition-all text-left"
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <div className="p-2 bg-green-50 rounded-lg">
+              <DollarIcon />
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-900">Invoice Settings</h3>
+              <p className="text-sm text-gray-500">Tax, banking, currency, and billing details</p>
+            </div>
+          </div>
+          <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </div>
+      </button>
+
+      {/* Logbook Settings */}
+      <button
+        onClick={() => setActiveSection("logbook")}
+        className="w-full p-4 bg-white rounded-lg border border-gray-200 hover:border-blue-400 hover:shadow-md transition-all text-left"
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <div className="p-2 bg-purple-50 rounded-lg">
+              <LocationIcon />
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-900">Logbook Settings</h3>
+              <p className="text-sm text-gray-500">Drop zones, aircraft, and jump types</p>
+            </div>
+          </div>
+          <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </div>
+      </button>
+
+      {/* Gear Management */}
+      <button
+        onClick={() => setActiveSection("gear")}
+        className="w-full p-4 bg-white rounded-lg border border-gray-200 hover:border-blue-400 hover:shadow-md transition-all text-left relative"
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <div className="p-2 bg-red-50 rounded-lg">
+              <BoxIcon />
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-900">Gear Management</h3>
+              <p className="text-sm text-gray-500">Manage parachutes and equipment</p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-2">
+            {gearServiceReminders.length > 0 && (
+              <span className="flex items-center">
+                <span className="w-2 h-2 bg-red-500 rounded-full mr-1"></span>
+                <span className="text-xs text-red-600 font-medium">{gearServiceReminders.length}</span>
+              </span>
+            )}
+            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </div>
+        </div>
+      </button>
+
+      {/* Previous Experience */}
+      <button
+        onClick={() => setActiveSection("experience")}
+        className="w-full p-4 bg-white rounded-lg border border-gray-200 hover:border-blue-400 hover:shadow-md transition-all text-left"
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <div className="p-2 bg-orange-50 rounded-lg">
+              <ClockIcon />
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-900">Previous Experience</h3>
+              <p className="text-sm text-gray-500">Update jump number and freefall time</p>
+            </div>
+          </div>
+          <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </div>
+      </button>
+
+      {/* Data Management */}
+      <button
+        onClick={() => setActiveSection("data")}
+        className="w-full p-4 bg-white rounded-lg border border-gray-200 hover:border-blue-400 hover:shadow-md transition-all text-left"
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <div className="p-2 bg-gray-100 rounded-lg">
+              <DatabaseIcon />
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-900">Data Management</h3>
+              <p className="text-sm text-gray-500">Import, export, and statistics</p>
+            </div>
+          </div>
+          <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </div>
+      </button>
+    </div>
+  )
+
+  const renderProfileSection = () => (
     <div className="space-y-6">
-      {/* Profile Section at Top */}
+      {/* Header with Back Button */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center space-x-3">
+          <Button
+            variant="ghost"
+            onClick={() => setActiveSection("main")}
+            className="p-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </Button>
+          <h2 className="text-xl font-semibold text-gray-900">Profile Settings</h2>
+        </div>
+        {hasUnsavedChanges && (
+          <Button onClick={handleSaveSettings} className="bg-blue-600 hover:bg-blue-700">
+            Save
+          </Button>
+        )}
+      </div>
+
+      {/* Personal Information */}
       <Card>
         <CardHeader>
-          <CardTitle>Instructor Profile</CardTitle>
+          <CardTitle>Personal Information</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
@@ -590,7 +794,125 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
               className="min-h-[80px]"
             />
           </div>
+        </CardContent>
+      </Card>
 
+      {/* Units Selector */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Units</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label className="text-base font-medium mb-3 block">Altitude Units</Label>
+            <div className="space-y-3">
+              <div className="flex items-center space-x-3">
+                <input
+                  type="radio"
+                  id="units-feet"
+                  name="units"
+                  value="feet"
+                  checked={tempAppSettings.units === "feet"}
+                  onChange={() => handleUnitsChange("feet")}
+                  className="w-4 h-4 text-blue-600"
+                />
+                <label htmlFor="units-feet" className="text-sm font-medium text-gray-700">
+                  Feet (ft) - Imperial
+                </label>
+              </div>
+              <div className="flex items-center space-x-3">
+                <input
+                  type="radio"
+                  id="units-meters"
+                  name="units"
+                  value="meters"
+                  checked={tempAppSettings.units === "meters"}
+                  onChange={() => handleUnitsChange("meters")}
+                  className="w-4 h-4 text-blue-600"
+                />
+                <label htmlFor="units-meters" className="text-sm font-medium text-gray-700">
+                  Meters (m) - Metric
+                </label>
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">
+              Changing units will convert all existing altitude values in your jump records.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Date Format Selector */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Date Format</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label className="text-base font-medium mb-3 block">Date Display Format</Label>
+            <div className="space-y-3">
+              {[
+                { value: "DD/MM/YYYY", label: "DD/MM/YYYY", example: formatDate(new Date(), "DD/MM/YYYY") },
+                { value: "MM/DD/YYYY", label: "MM/DD/YYYY", example: formatDate(new Date(), "MM/DD/YYYY") },
+                { value: "YYYY-MM-DD", label: "YYYY-MM-DD", example: formatDate(new Date(), "YYYY-MM-DD") },
+              ].map((format) => (
+                <div key={format.value} className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <input
+                      type="radio"
+                      id={`date-${format.value}`}
+                      name="dateFormat"
+                      value={format.value}
+                      checked={tempAppSettings.dateFormat === format.value}
+                      onChange={() => handleAppSettingsChange("dateFormat", format.value)}
+                      className="w-4 h-4 text-blue-600"
+                    />
+                    <label htmlFor={`date-${format.value}`} className="text-sm font-medium text-gray-700">
+                      {format.label}
+                    </label>
+                  </div>
+                  <span className="text-sm text-gray-500">{format.example}</span>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-gray-500 mt-2">
+              This affects how dates are displayed throughout the app.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+
+  const renderInvoiceSection = () => (
+    <div className="space-y-6">
+      {/* Header with Back Button */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center space-x-3">
+          <Button
+            variant="ghost"
+            onClick={() => setActiveSection("main")}
+            className="p-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </Button>
+          <h2 className="text-xl font-semibold text-gray-900">Invoice Settings</h2>
+        </div>
+        {hasUnsavedChanges && (
+          <Button onClick={handleSaveSettings} className="bg-blue-600 hover:bg-blue-700">
+            Save
+          </Button>
+        )}
+      </div>
+
+      {/* Tax & Banking Information */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Tax & Banking Information</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
           <div>
             <Label htmlFor="taxNumber">Tax Number (Optional)</Label>
             <Input
@@ -690,7 +1012,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
       {/* Drop Zone Billing */}
       <Card>
         <CardHeader>
-          <CardTitle>Drop Zone Billing</CardTitle>
+          <CardTitle>Drop Zone Billing Details</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-gray-600">Configure billing details for drop zones where you've done work jumps</p>
@@ -739,8 +1061,34 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     </div>
   )
 
-  const renderJumpSettings = () => (
+  const renderLogbookSection = () => (
     <div className="space-y-6">
+      {/* Header with Back Button */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center space-x-3">
+          <Button
+            variant="ghost"
+            onClick={() => setActiveSection("main")}
+            className="p-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </Button>
+          <h2 className="text-xl font-semibold text-gray-900">Logbook Settings</h2>
+        </div>
+      </div>
+
+      {/* Drop Zone Manager */}
+      <DropZoneManager
+        dropZones={dropZones}
+        onUpdateDropZones={onUpdateDropZones}
+        onUpdateDropZoneOptions={onUpdateDropZoneOptions}
+        savedJumps={savedJumps}
+        onUpdateJumpsDropZone={onUpdateJumpsDropZone}
+      />
+
+      {/* Aircraft Management */}
       <Card>
         <CardHeader>
           <CardTitle>Aircraft Management</CardTitle>
@@ -784,6 +1132,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         </CardContent>
       </Card>
 
+      {/* Jump Type Management */}
       <Card>
         <CardHeader>
           <CardTitle>Jump Type Management</CardTitle>
@@ -826,14 +1175,26 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           </div>
         </CardContent>
       </Card>
+    </div>
+  )
 
-      <DropZoneManager
-        dropZones={dropZones}
-        onUpdateDropZones={onUpdateDropZones}
-        onUpdateDropZoneOptions={onUpdateDropZoneOptions}
-        savedJumps={savedJumps}
-        onUpdateJumpsDropZone={onUpdateJumpsDropZone}
-      />
+  const renderGearSection = () => (
+    <div className="space-y-6">
+      {/* Header with Back Button */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center space-x-3">
+          <Button
+            variant="ghost"
+            onClick={() => setActiveSection("main")}
+            className="p-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </Button>
+          <h2 className="text-xl font-semibold text-gray-900">Gear Management</h2>
+        </div>
+      </div>
 
       <GearManager
         gearItems={gearItems}
@@ -845,8 +1206,30 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     </div>
   )
 
-  const renderPreferences = () => (
+  const renderExperienceSection = () => (
     <div className="space-y-6">
+      {/* Header with Back Button */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center space-x-3">
+          <Button
+            variant="ghost"
+            onClick={() => setActiveSection("main")}
+            className="p-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </Button>
+          <h2 className="text-xl font-semibold text-gray-900">Previous Experience</h2>
+        </div>
+        {hasUnsavedChanges && (
+          <Button onClick={handleSaveSettings} className="bg-blue-600 hover:bg-blue-700">
+            Save
+          </Button>
+        )}
+      </div>
+
+      {/* Jump Count Management */}
       <Card>
         <CardHeader>
           <CardTitle>Jump Count Management</CardTitle>
@@ -954,6 +1337,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         </CardContent>
       </Card>
 
+      {/* Freefall Time Management */}
       <Card>
         <CardHeader>
           <CardTitle>Freefall Time Management</CardTitle>
@@ -1059,95 +1443,30 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           </div>
         </CardContent>
       </Card>
+    </div>
+  )
 
-      {/* Units Selector */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Units</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <Label className="text-base font-medium mb-3 block">Altitude Units</Label>
-            <div className="space-y-3">
-              <div className="flex items-center space-x-3">
-                <input
-                  type="radio"
-                  id="units-feet"
-                  name="units"
-                  value="feet"
-                  checked={tempAppSettings.units === "feet"}
-                  onChange={() => handleUnitsChange("feet")}
-                  className="w-4 h-4 text-blue-600"
-                />
-                <label htmlFor="units-feet" className="text-sm font-medium text-gray-700">
-                  Feet (ft) - Imperial
-                </label>
-              </div>
-              <div className="flex items-center space-x-3">
-                <input
-                  type="radio"
-                  id="units-meters"
-                  name="units"
-                  value="meters"
-                  checked={tempAppSettings.units === "meters"}
-                  onChange={() => handleUnitsChange("meters")}
-                  className="w-4 h-4 text-blue-600"
-                />
-                <label htmlFor="units-meters" className="text-sm font-medium text-gray-700">
-                  Meters (m) - Metric
-                </label>
-              </div>
-            </div>
-            <p className="text-xs text-gray-500 mt-2">
-              Changing units will convert all existing altitude values in your jump records.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Date Format Selector */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Date Format</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <Label className="text-base font-medium mb-3 block">Date Display Format</Label>
-            <div className="space-y-3">
-              {[
-                { value: "DD/MM/YYYY", label: "DD/MM/YYYY", example: formatDate(new Date(), "DD/MM/YYYY") },
-                { value: "MM/DD/YYYY", label: "MM/DD/YYYY", example: formatDate(new Date(), "MM/DD/YYYY") },
-                { value: "YYYY-MM-DD", label: "YYYY-MM-DD", example: formatDate(new Date(), "YYYY-MM-DD") },
-              ].map((format) => (
-                <div key={format.value} className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <input
-                      type="radio"
-                      id={`date-${format.value}`}
-                      name="dateFormat"
-                      value={format.value}
-                      checked={tempAppSettings.dateFormat === format.value}
-                      onChange={() => handleAppSettingsChange("dateFormat", format.value)}
-                      className="w-4 h-4 text-blue-600"
-                    />
-                    <label htmlFor={`date-${format.value}`} className="text-sm font-medium text-gray-700">
-                      {format.label}
-                    </label>
-                  </div>
-                  <span className="text-sm text-gray-500">{format.example}</span>
-                </div>
-              ))}
-            </div>
-            <p className="text-xs text-gray-500 mt-2">
-              This affects how dates are displayed throughout the app. Dates are always stored in ISO format internally.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+  const renderDataSection = () => (
+    <div className="space-y-6">
+      {/* Header with Back Button */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center space-x-3">
+          <Button
+            variant="ghost"
+            onClick={() => setActiveSection("main")}
+            className="p-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </Button>
+          <h2 className="text-xl font-semibold text-gray-900">Data Management</h2>
+        </div>
+      </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Data Management</CardTitle>
+          <CardTitle>Export Data</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <Button variant="outline" className="w-full bg-transparent">
@@ -1159,15 +1478,53 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           <Button variant="outline" className="w-full bg-transparent">
             Backup All Data (JSON)
           </Button>
-          <div className="pt-4 border-t border-gray-200">
-            <Button
-              variant="outline"
-              onClick={handleResetSettings}
-              className="w-full text-red-600 border-red-300 hover:bg-red-50 bg-transparent"
-            >
-              Reset All Settings
-            </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Import Data</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Button variant="outline" className="w-full bg-transparent">
+            Import Jump Data (CSV)
+          </Button>
+          <Button variant="outline" className="w-full bg-transparent">
+            Restore from Backup (JSON)
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Statistics</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="text-center py-6 text-gray-500">
+            <p>Statistics features coming soon</p>
+            <p className="text-sm mt-2">View detailed analytics about your jumps and earnings</p>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Danger Zone</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Button
+            variant="outline"
+            onClick={handleResetSettings}
+            className="w-full text-red-600 border-red-300 hover:bg-red-50 bg-transparent"
+          >
+            Reset All Settings
+          </Button>
+          <Button
+            variant="outline"
+            className="w-full text-red-600 border-red-300 hover:bg-red-50 bg-transparent"
+          >
+            Clear All Data
+          </Button>
         </CardContent>
       </Card>
     </div>
@@ -1244,6 +1601,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             }
             handleSaveDropZone()
             setShowBillingDetails(false)
+            setActiveSection("invoice")
           }}
           className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3"
           disabled={
@@ -1255,7 +1613,14 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           Save Billing Details
         </Button>
 
-        <Button onClick={() => setShowBillingDetails(false)} variant="outline" className="w-full py-3 bg-transparent">
+        <Button 
+          onClick={() => {
+            setShowBillingDetails(false)
+            setActiveSection("invoice")
+          }} 
+          variant="outline" 
+          className="w-full py-3 bg-transparent"
+        >
           Cancel
         </Button>
       </div>
@@ -1270,59 +1635,17 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         ) : (
           <>
             <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center space-x-3">
-                <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-                {gearServiceReminders.length > 0 && (
-                  <div className="flex items-center">
-                    <span className="w-2 h-2 bg-red-500 rounded-full mr-1"></span>
-                    <span className="text-xs text-red-600 font-medium">{gearServiceReminders.length}</span>
-                  </div>
-                )}
-              </div>
-              {hasUnsavedChanges && (
-                <div className="flex space-x-2">
-                  <Button variant="outline" onClick={handleResetSettings} className="text-sm px-3 py-1 bg-transparent">
-                    Reset
-                  </Button>
-                  <Button onClick={handleSaveSettings} className="text-sm px-3 py-1 bg-blue-600 hover:bg-blue-700">
-                    Save
-                  </Button>
-                </div>
-              )}
+              <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
             </div>
 
-            {/* Navigation */}
-            <div className="grid grid-cols-3 gap-2 mb-6 bg-white rounded-lg p-1 shadow-sm">
-              {navigationItems.map((item) => {
-                const IconComponent = item.icon
-                const hasAlert = item.id === "jump" && gearServiceReminders.length > 0
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => setActiveSection(item.id)}
-                    className={`flex flex-col items-center py-3 px-2 rounded-md text-sm font-medium transition-colors relative ${
-                      activeSection === item.id
-                        ? "bg-blue-100 text-blue-700"
-                        : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
-                    }`}
-                  >
-                    <IconComponent
-                      size={20}
-                      className={`mb-1 ${activeSection === item.id ? "text-blue-600" : "text-gray-500"}`}
-                    />
-                    <span className="text-center leading-tight">{item.label}</span>
-                    {hasAlert && <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></span>}
-                  </button>
-                )
-              })}
-            </div>
-
-            {/* Content */}
-            <div className="space-y-4">
-              {activeSection === "invoice" && renderInvoiceSettings()}
-              {activeSection === "jump" && renderJumpSettings()}
-              {activeSection === "preferences" && renderPreferences()}
-            </div>
+            {/* Render based on active section */}
+            {activeSection === "main" && renderMainMenu()}
+            {activeSection === "profile" && renderProfileSection()}
+            {activeSection === "invoice" && renderInvoiceSection()}
+            {activeSection === "logbook" && renderLogbookSection()}
+            {activeSection === "gear" && renderGearSection()}
+            {activeSection === "experience" && renderExperienceSection()}
+            {activeSection === "data" && renderDataSection()}
           </>
         )}
       </div>
