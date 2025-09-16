@@ -16,6 +16,7 @@ import type { DropZone } from "@/types/dropzone"
 import type { GearItem } from "@/types/gear"
 import type { GearGroup } from "@/types/gear"
 import type { GearOption } from "@/types/gear"
+import { ImportExportManager } from "@/components/import-export-manager"
 import { formatDate } from "@/utils/date-formatting"
 
 interface SettingsTabProps {
@@ -42,9 +43,12 @@ interface SettingsTabProps {
   onUpdateJumpsDropZone: (oldDropZone: string, newDropZone: string) => void
   onUpdateJumpsJumpType: (oldJumpType: string, newJumpType: string) => void
   onUnitsChange: (newUnits: "feet" | "meters") => void
+  invoices?: Invoice[]
+  onImportJumps?: (jumps: JumpRecord[]) => void
+  onRestoreData?: (data: any) => void
 }
 
-type SettingsSection = 
+type SettingsSection =
   | "main"
   | "profile"
   | "invoice"
@@ -77,6 +81,9 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   onUpdateJumpsDropZone,
   onUpdateJumpsJumpType,
   onUnitsChange,
+  invoices = [],
+  onImportJumps = () => { },
+  onRestoreData = () => { },
 }) => {
   const [activeSection, setActiveSection] = useState<SettingsSection>("main")
   const [tempInvoiceSettings, setTempInvoiceSettings] = useState(invoiceSettings)
@@ -325,9 +332,8 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 
     const jumpCount = savedJumps.length
     if (jumpCount > 0) {
-      const confirmMessage = `This will convert altitude values in ${jumpCount} existing jump record${
-        jumpCount > 1 ? "s" : ""
-      } from ${tempAppSettings.units} to ${newUnits}. This action cannot be undone. Continue?`
+      const confirmMessage = `This will convert altitude values in ${jumpCount} existing jump record${jumpCount > 1 ? "s" : ""
+        } from ${tempAppSettings.units} to ${newUnits}. This action cannot be undone. Continue?`
 
       if (!confirm(confirmMessage)) {
         return
@@ -400,7 +406,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     if (jumpsUsingAircraft.length > 0) {
       const confirmDelete = confirm(
         `"${aircraft}" is used in ${jumpsUsingAircraft.length} jump record(s). ` +
-          `If you delete it, you'll need to select a replacement aircraft for those jumps. Continue?`,
+        `If you delete it, you'll need to select a replacement aircraft for those jumps. Continue?`,
       )
 
       if (!confirmDelete) return
@@ -457,7 +463,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     if (jumpsUsingAircraft.length > 0) {
       const confirmEdit = confirm(
         `"${oldAircraft}" is used in ${jumpsUsingAircraft.length} jump record(s). ` +
-          `All records will be updated to use "${trimmedName}". Continue?`,
+        `All records will be updated to use "${trimmedName}". Continue?`,
       )
 
       if (!confirmEdit) return
@@ -489,7 +495,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     if (jumpsUsingJumpType.length > 0) {
       const confirmDelete = confirm(
         `"${jumpType}" is used in ${jumpsUsingJumpType.length} jump record(s). ` +
-          `If you delete it, you'll need to select a replacement jump type for those jumps. Continue?`,
+        `If you delete it, you'll need to select a replacement jump type for those jumps. Continue?`,
       )
 
       if (!confirmDelete) return
@@ -546,7 +552,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     if (jumpsUsingJumpType.length > 0) {
       const confirmEdit = confirm(
         `"${oldJumpType}" is used in ${jumpsUsingJumpType.length} jump record(s). ` +
-          `All records will be updated to use "${trimmedName}". Continue?`,
+        `All records will be updated to use "${trimmedName}". Continue?`,
       )
 
       if (!confirmEdit) return
@@ -1464,36 +1470,54 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Export Data</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Button variant="outline" className="w-full bg-transparent">
-            Export Jump Data (CSV)
-          </Button>
-          <Button variant="outline" className="w-full bg-transparent">
-            Export Invoice Data (CSV)
-          </Button>
-          <Button variant="outline" className="w-full bg-transparent">
-            Backup All Data (JSON)
-          </Button>
-        </CardContent>
-      </Card>
+      {/* Import the ImportExportManager component */}
+      <ImportExportManager
+        jumps={savedJumps}
+        invoices={invoices}
+        onImportJumps={(importedJumps) => {
+          // Mark imported work jumps as already paid/billed
+          const processedJumps = importedJumps.map(jump => ({
+            ...jump,
+            // If it's a work jump, mark it as paid (already billed externally)
+            invoiceStatus: jump.workJump ? 'paid' as const : undefined,
+            // Mark work jump services as finalized with special EXTERNAL marker
+            finalizedInvoiceItems: jump.workJump && jump.invoiceItems ?
+              jump.invoiceItems.map(item => ({
+                itemName: item,
+                invoiceId: 'EXTERNAL' // Special marker for imported/external billing
+              })) : undefined,
+            openInvoiceId: null,
+          }))
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Import Data</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Button variant="outline" className="w-full bg-transparent">
-            Import Jump Data (CSV)
-          </Button>
-          <Button variant="outline" className="w-full bg-transparent">
-            Restore from Backup (JSON)
-          </Button>
-        </CardContent>
-      </Card>
+          // Merge with existing jumps (avoid duplicates)
+          const existingNumbers = new Set(savedJumps.map(j => j.jumpNumber))
+          const newJumps = processedJumps.filter(j => !existingNumbers.has(j.jumpNumber))
+
+          // FIXED: Actually call the parent function to save the jumps
+          if (onImportJumps) {
+            onImportJumps(newJumps)
+          }
+
+          // Show success message
+          if (newJumps.length > 0) {
+            alert(`Successfully imported ${newJumps.length} jumps (${newJumps.filter(j => j.workJump).length} work jumps marked as paid)`)
+          } else {
+            alert('No new jumps imported (all jump numbers already exist)')
+          }
+        }}
+        onBackupData={() => ({
+          jumps: savedJumps,
+          invoices,
+          settings: {
+            appSettings,
+            invoiceSettings,
+            dropZoneOptions: dropZones.map(dz => dz.name),
+            aircraftOptions,
+            jumpTypeOptions
+          }
+        })}
+        onRestoreData={onRestoreData}
+      />
 
       <Card>
         <CardHeader>
@@ -1613,12 +1637,12 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           Save Billing Details
         </Button>
 
-        <Button 
+        <Button
           onClick={() => {
             setShowBillingDetails(false)
             setActiveSection("invoice")
-          }} 
-          variant="outline" 
+          }}
+          variant="outline"
           className="w-full py-3 bg-transparent"
         >
           Cancel

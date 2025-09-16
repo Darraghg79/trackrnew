@@ -1154,30 +1154,104 @@ export function MainTracker() {
           />
         )}
 
-        {/* Settings Tab */}
-        {activeTab === 'settings' && (
-          <SettingsTab
-            invoiceSettings={invoiceSettings}
-            onUpdateSettings={setInvoiceSettings}
-            dropZones={dropZones}
-            onUpdateDropZones={setDropZones}
-            appSettings={appSettings}
-            onUpdateAppSettings={setAppSettings}
-            gearItems={gearItems}
-            onUpdateGearItems={setGearItems}
-            gearGroups={gearGroups}
-            onUpdateGearGroups={setGearGroups}
-            gearOptions={gearOptions}
-            onUpdateGearOptions={setGearOptions}
-            savedJumps={savedJumps}
-            aircraftOptions={aircraftOptions}
-            jumpTypeOptions={jumpTypeOptions}
-            onUpdateAircraftOptions={setAircraftOptions}
-            onUpdateJumpTypeOptions={setJumpTypeOptions}
-            onUpdateJumpsJumpType={handleUpdateJumpsJumpType}
-            onUpdateJumpsAircraft={handleUpdateJumpsAircraft}
-          />
-        )}
+{/* Settings Tab */}
+{activeTab === 'settings' && (
+  <SettingsTab
+    invoiceSettings={invoiceSettings}
+    onUpdateSettings={setInvoiceSettings}
+    dropZones={dropZones}
+    onUpdateDropZones={setDropZones}
+    appSettings={appSettings}
+    onUpdateAppSettings={setAppSettings}
+    gearItems={gearItems}
+    onUpdateGearItems={setGearItems}
+    gearGroups={gearGroups}
+    onUpdateGearGroups={setGearGroups}
+    gearOptions={gearOptions}
+    onUpdateGearOptions={setGearOptions}
+    savedJumps={savedJumps}
+    aircraftOptions={aircraftOptions}
+    jumpTypeOptions={jumpTypeOptions}
+    onUpdateAircraftOptions={setAircraftOptions}
+    onUpdateJumpTypeOptions={setJumpTypeOptions}
+    onUpdateJumpsJumpType={handleUpdateJumpsJumpType}
+    onUpdateJumpsAircraft={handleUpdateJumpsAircraft}
+    onUpdateJumpsDropZone={(oldDz, newDz) => {
+      const updated = savedJumps.map(jump => 
+        jump.dropZone === oldDz ? { ...jump, dropZone: newDz } : jump
+      )
+      setSavedJumps(updated)
+    }}
+    onUnitsChange={(newUnits) => {
+      // Handle units conversion if needed
+      setAppSettings(prev => ({ ...prev, units: newUnits }))
+    }}
+    // Add these new props for import/export
+    invoices={invoices}
+    onImportJumps={(importedJumps: JumpRecord[]) => {
+      // Process imported jumps - mark work jumps as paid
+      const processedJumps = importedJumps.map(jump => ({
+        ...jump,
+        id: jump.id || `jump-${Date.now()}-${Math.random()}`,
+        // Mark imported work jumps as paid (never to be invoiced)
+        invoiceStatus: jump.workJump ? 'paid' as const : undefined,
+        // Mark services as externally billed
+        finalizedInvoiceItems: jump.workJump && jump.invoiceItems ? 
+          jump.invoiceItems.map(item => ({
+            itemName: item,
+            invoiceId: 'IMPORTED' // Special marker
+          })) : undefined,
+        openInvoiceId: null,
+        invoiceIds: [],
+        invoicedServices: jump.workJump ? (jump.invoiceItems || []) : [],
+        pendingInvoiceServices: []
+      }))
+
+      // Filter out duplicates
+      const existingNumbers = new Set(savedJumps.map(j => j.jumpNumber))
+      const newJumps = processedJumps.filter(j => !existingNumbers.has(j.jumpNumber))
+      
+      setSavedJumps(prev => [...prev, ...newJumps])
+      
+      // Update jump counter if needed
+      if (newJumps.length > 0) {
+        const maxImported = Math.max(...newJumps.map(j => j.jumpNumber))
+        if (maxImported > appSettings.currentJumpNumber) {
+          setAppSettings(prev => ({
+            ...prev,
+            currentJumpNumber: maxImported
+          }))
+        }
+      }
+    }}
+    onRestoreData={(data: any) => {
+      // Restore complete backup
+      if (data.jumps) {
+        setSavedJumps(data.jumps)
+      }
+      if (data.invoices) {
+        setInvoices(data.invoices)
+      }
+      if (data.settings) {
+        if (data.settings.appSettings) {
+          setAppSettings(data.settings.appSettings)
+        }
+        if (data.settings.invoiceSettings) {
+          setInvoiceSettings(data.settings.invoiceSettings)
+        }
+        if (data.settings.dropZoneOptions) {
+          setDropZones(data.settings.dropZoneOptions)
+        }
+        if (data.settings.aircraftOptions) {
+          setAircraftOptions(data.settings.aircraftOptions)
+        }
+        if (data.settings.jumpTypeOptions) {
+          setJumpTypeOptions(data.settings.jumpTypeOptions)
+        }
+      }
+    }}
+  />
+)}
       </div>
 
       {/* Bottom Navigation */}
