@@ -156,8 +156,8 @@ function validateJumpRecord(
         errors.push(`Row ${rowIndex}: Jump number ${jump.jumpNumber} already exists`)
     }
 
-    if (!jump.date) {
-        errors.push(`Row ${rowIndex}: Date is required`)
+    if (!jump.date || isNaN(jump.date.getTime())) {
+        errors.push(`Row ${rowIndex}: Valid date is required`)
     }
 
     if (!jump.dropZone) {
@@ -168,7 +168,7 @@ function validateJumpRecord(
         errors.push(`Row ${rowIndex}: Aircraft is required`)
     }
 
-    // Altitude validation
+    // Altitude warnings (not errors)
     if (jump.exitAltitude && (jump.exitAltitude < 1000 || jump.exitAltitude > 30000)) {
         warnings.push(`Row ${rowIndex}: Unusual exit altitude ${jump.exitAltitude}`)
     }
@@ -177,15 +177,8 @@ function validateJumpRecord(
         warnings.push(`Row ${rowIndex}: Unusual deployment altitude ${jump.deploymentAltitude}`)
     }
 
-    // Work jump validation
-    if (jump.workJump) {
-        if (!jump.customerName) {
-            errors.push(`Row ${rowIndex}: Customer name is required for work jumps`)
-        }
-        if (!jump.totalRate || jump.totalRate <= 0) {
-            warnings.push(`Row ${rowIndex}: Work jump should have a positive rate`)
-        }
-    }
+    // For historical imports, work jumps don't need customer names
+    // We're treating them as already billed anyway
 
     return { isValid: errors.length === 0, errors, warnings }
 }
@@ -257,7 +250,7 @@ export function parseCSVToJumps(
                     jumpData.date = new Date(value)
                     break
                 case 'dropzone':
-                    jumpData.dropZone = value // Fixed: was looking for wrong field name
+                    jumpData.dropZone = value
                     break
                 case 'aircraft':
                     jumpData.aircraft = value
@@ -278,19 +271,34 @@ export function parseCSVToJumps(
                     jumpData.landingDistance = value ? parseFloat(value) : 0
                     break
                 case 'workjump':
-                    jumpData.workJump = value.toUpperCase() === 'TRUE' || value === '1'
+                    // Handle various boolean formats
+                    const lowerValue = value.toLowerCase()
+                    jumpData.workJump =
+                        lowerValue === 'true' ||
+                        lowerValue === '1' ||
+                        lowerValue === 'yes' ||
+                        lowerValue === 'y' ||
+                        lowerValue === 't'
                     break
                 case 'cutaway':
-                    jumpData.cutaway = value.toUpperCase() === 'TRUE' || value === '1'
+                    const cutawayValue = value.toLowerCase()
+                    jumpData.cutaway =
+                        cutawayValue === 'true' ||
+                        cutawayValue === '1' ||
+                        cutawayValue === 'yes' ||
+                        cutawayValue === 'y' ||
+                        cutawayValue === 't'
                     break
                 case 'gearused':
-                    jumpData.gearUsed = value ? value.split(';').map(s => s.trim()).filter(Boolean) : []
+                    // SKIP - will handle via settings
+                    jumpData.gearUsed = []
                     break
                 case 'invoiceitems':
                     jumpData.invoiceItems = value ? value.split(';').map(s => s.trim()).filter(Boolean) : []
                     break
                 case 'customername':
-                    jumpData.customerName = value
+                    // SKIP - not needed for historical imports
+                    jumpData.customerName = undefined
                     break
                 case 'totalrate':
                     jumpData.totalRate = value ? parseFloat(value) : 0
@@ -299,7 +307,8 @@ export function parseCSVToJumps(
                     jumpData.notes = value
                     break
                 default:
-                    jumpData[key] = value
+                    // Ignore any other fields
+                    break
             }
         })
 
@@ -319,17 +328,16 @@ export function parseCSVToJumps(
                 exitAltitude: jumpData.exitAltitude || 13000,
                 deploymentAltitude: jumpData.deploymentAltitude || 3500,
                 freefallTime: jumpData.freefallTime || 0,
-                gearUsed: jumpData.gearUsed || [],
+                gearUsed: [], // Always empty for imports
                 cutaway: jumpData.cutaway || false,
                 landingDistance: jumpData.landingDistance || 0,
                 notes: jumpData.notes || '',
                 workJump: jumpData.workJump || false,
-                customerName: jumpData.customerName || undefined,
+                customerName: undefined, // Don't import historical customer names
                 invoiceItems: jumpData.invoiceItems || undefined,
                 totalRate: jumpData.totalRate || undefined,
-                // FIXED: Mark imported work jumps as paid, not unbilled
+                // Mark imported work jumps as already paid
                 invoiceStatus: jumpData.workJump ? 'paid' : undefined,
-                // Mark work jump services as already billed externally
                 finalizedInvoiceItems: jumpData.workJump && jumpData.invoiceItems ?
                     jumpData.invoiceItems.map((item: string) => ({
                         itemName: item,

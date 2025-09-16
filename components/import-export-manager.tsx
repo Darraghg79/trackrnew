@@ -5,6 +5,7 @@ import { useState, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { ImportStaging } from '@/components/import-staging'
 import {
     Upload,
     Download,
@@ -44,6 +45,8 @@ export const ImportExportManager: React.FC<ImportExportManagerProps> = ({
     const [importResult, setImportResult] = useState<ImportResult | null>(null)
     const [previewJumps, setPreviewJumps] = useState<JumpRecord[]>([])
     const fileInputRef = useRef<HTMLInputElement>(null)
+    const [showStaging, setShowStaging] = useState(false)
+    const [stagedData, setStagedData] = useState<any[]>([])
 
     /**
      * Export all jumps to CSV
@@ -72,14 +75,10 @@ export const ImportExportManager: React.FC<ImportExportManagerProps> = ({
         downloadFile(template, 'jump-import-template.csv', 'text/csv')
     }
 
-    /**
-     * Handle file selection for import
-     */
     const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0]
         if (!file) return
 
-        // Validate file type
         if (!file.name.endsWith('.csv')) {
             setImportStatus('error')
             setImportResult({
@@ -92,66 +91,31 @@ export const ImportExportManager: React.FC<ImportExportManagerProps> = ({
             return
         }
 
-        // Read and parse file
         const reader = new FileReader()
         reader.onload = (e) => {
             const content = e.target?.result as string
             const result = parseCSVToJumps(content, jumps)
 
             setImportResult(result)
-            setPreviewJumps(result.jumps)
 
-            if (result.errors.length > 0) {
+            // Instead of showing preview, go to staging
+            if (result.jumps.length > 0) {
+                const stagedJumps = result.jumps.map((jump, index) => ({
+                    ...jump,
+                    _importRow: index + 1,
+                    _errors: [],
+                    _warnings: [],
+                    _isValid: true
+                }))
+                setStagedData(stagedJumps)
+                setShowStaging(true)
+                setImportStatus('idle')
+            } else if (result.errors.length > 0) {
                 setImportStatus('error')
-            } else {
-                setImportStatus('preview')
             }
         }
 
-        reader.onerror = () => {
-            setImportStatus('error')
-            setImportResult({
-                jumps: [],
-                errors: ['Failed to read file'],
-                warnings: [],
-                totalRows: 0,
-                successCount: 0
-            })
-        }
-
         reader.readAsText(file)
-    }
-
-    /**
-     * Confirm and import jumps
-     */
-    const handleConfirmImport = () => {
-        if (previewJumps.length > 0) {
-            onImportJumps(previewJumps)
-            setImportStatus('success')
-
-            // Reset after 3 seconds
-            setTimeout(() => {
-                setImportStatus('idle')
-                setImportResult(null)
-                setPreviewJumps([])
-                if (fileInputRef.current) {
-                    fileInputRef.current.value = ''
-                }
-            }, 3000)
-        }
-    }
-
-    /**
-     * Cancel import
-     */
-    const handleCancelImport = () => {
-        setImportStatus('idle')
-        setImportResult(null)
-        setPreviewJumps([])
-        if (fileInputRef.current) {
-            fileInputRef.current.value = ''
-        }
     }
 
     /**
@@ -201,6 +165,39 @@ export const ImportExportManager: React.FC<ImportExportManagerProps> = ({
         }
 
         reader.readAsText(file)
+    }
+
+    // If showing staging, render that instead
+    if (showStaging && stagedData.length > 0) {
+        return (
+            <ImportStaging
+                stagedJumps={stagedData}
+                existingDropZones={jumps.map(j => j.dropZone).filter(Boolean).filter((v, i, a) => a.indexOf(v) === i)}
+                existingAircraft={jumps.map(j => j.aircraft).filter(Boolean).filter((v, i, a) => a.indexOf(v) === i)}
+                existingJumpTypes={jumps.map(j => j.jumpType).filter(Boolean).filter((v, i, a) => a.indexOf(v) === i)}
+                existingJumpNumbers={jumps.map(j => j.jumpNumber)}
+                onConfirmImport={(importedJumps) => {
+                    onImportJumps(importedJumps)
+                    setShowStaging(false)
+                    setStagedData([])
+                    setImportStatus('success')
+                    if (fileInputRef.current) {
+                        fileInputRef.current.value = ''
+                    }
+                    setTimeout(() => {
+                        setImportStatus('idle')
+                    }, 3000)
+                }}
+                onCancel={() => {
+                    setShowStaging(false)
+                    setStagedData([])
+                    setImportStatus('idle')
+                    if (fileInputRef.current) {
+                        fileInputRef.current.value = ''
+                    }
+                }}
+            />
+        )
     }
 
     return (
@@ -285,44 +282,11 @@ export const ImportExportManager: React.FC<ImportExportManagerProps> = ({
                         </Alert>
                     )}
 
-                    {importStatus === 'preview' && importResult && (
-                        <Alert>
-                            <AlertTriangle className="h-4 w-4 text-yellow-600" />
-                            <AlertDescription>
-                                <div className="space-y-2">
-                                    <p className="font-semibold">Preview Import</p>
-                                    <p className="text-sm">
-                                        Found {importResult.successCount} valid jumps out of {importResult.totalRows} rows
-                                    </p>
-                                    {importResult.warnings.length > 0 && (
-                                        <div className="space-y-1">
-                                            <p className="text-sm font-medium">Warnings:</p>
-                                            {importResult.warnings.slice(0, 3).map((warning, i) => (
-                                                <p key={i} className="text-xs">{warning}</p>
-                                            ))}
-                                            {importResult.warnings.length > 3 && (
-                                                <p className="text-xs">...and {importResult.warnings.length - 3} more warnings</p>
-                                            )}
-                                        </div>
-                                    )}
-                                    <div className="flex gap-2 mt-4">
-                                        <Button size="sm" onClick={handleConfirmImport}>
-                                            Confirm Import
-                                        </Button>
-                                        <Button size="sm" variant="outline" onClick={handleCancelImport}>
-                                            Cancel
-                                        </Button>
-                                    </div>
-                                </div>
-                            </AlertDescription>
-                        </Alert>
-                    )}
-
                     {importStatus === 'success' && (
                         <Alert>
                             <CheckCircle className="h-4 w-4 text-green-600" />
                             <AlertDescription>
-                                Successfully imported {previewJumps.length} jump records!
+                                Import completed successfully!
                             </AlertDescription>
                         </Alert>
                     )}
@@ -338,17 +302,14 @@ export const ImportExportManager: React.FC<ImportExportManagerProps> = ({
                                 className="hidden"
                                 id="csv-import"
                             />
-                            <label htmlFor="csv-import">
-                                <Button
-                                    variant="outline"
-                                    className="w-full justify-start cursor-pointer"
-                                    disabled={importStatus === 'preview'}
-                                    onClick={() => document.getElementById('csv-import')?.click()}
-                                >
-                                    <Upload className="w-4 h-4 mr-2" />
-                                    Import Jump Records (CSV)
-                                </Button>
-                            </label>
+                            <Button
+                                variant="outline"
+                                className="w-full justify-start cursor-pointer"
+                                onClick={() => document.getElementById('csv-import')?.click()}
+                            >
+                                <Upload className="w-4 h-4 mr-2" />
+                                Import Jump Records (CSV)
+                            </Button>
                         </div>
 
                         <div>
@@ -359,16 +320,14 @@ export const ImportExportManager: React.FC<ImportExportManagerProps> = ({
                                 className="hidden"
                                 id="json-restore"
                             />
-                            <label htmlFor="json-restore">
-                                <Button
-                                    variant="outline"
-                                    className="w-full justify-start cursor-pointer"
-                                    onClick={() => document.getElementById('json-restore')?.click()}
-                                >
-                                    <Upload className="w-4 h-4 mr-2" />
-                                    Restore from Backup (JSON)
-                                </Button>
-                            </label>
+                            <Button
+                                variant="outline"
+                                className="w-full justify-start cursor-pointer"
+                                onClick={() => document.getElementById('json-restore')?.click()}
+                            >
+                                <Upload className="w-4 h-4 mr-2" />
+                                Restore from Backup (JSON)
+                            </Button>
                         </div>
                     </div>
 
@@ -385,53 +344,6 @@ export const ImportExportManager: React.FC<ImportExportManagerProps> = ({
                     </div>
                 </CardContent>
             </Card>
-
-            {/* Preview Table (shown during import preview) */}
-            {importStatus === 'preview' && previewJumps.length > 0 && (
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Import Preview</CardTitle>
-                        <p className="text-sm text-muted-foreground">
-                            First 5 jumps to be imported
-                        </p>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="overflow-x-auto">
-                            <table className="min-w-full text-sm">
-                                <thead className="border-b">
-                                    <tr>
-                                        <th className="text-left p-2">Jump #</th>
-                                        <th className="text-left p-2">Date</th>
-                                        <th className="text-left p-2">Drop Zone</th>
-                                        <th className="text-left p-2">Type</th>
-                                        <th className="text-left p-2">Work Jump</th>
-                                        <th className="text-left p-2">Customer</th>
-                                        <th className="text-left p-2">Rate</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {previewJumps.slice(0, 5).map((jump, i) => (
-                                        <tr key={i} className="border-b">
-                                            <td className="p-2">{jump.jumpNumber}</td>
-                                            <td className="p-2">{new Date(jump.date).toLocaleDateString()}</td>
-                                            <td className="p-2">{jump.dropZone}</td>
-                                            <td className="p-2">{jump.jumpType}</td>
-                                            <td className="p-2">{jump.workJump ? 'Yes' : 'No'}</td>
-                                            <td className="p-2">{jump.customerName || '-'}</td>
-                                            <td className="p-2">{jump.totalRate ? `€${jump.totalRate}` : '-'}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                            {previewJumps.length > 5 && (
-                                <p className="text-sm text-muted-foreground mt-2">
-                                    ...and {previewJumps.length - 5} more jumps
-                                </p>
-                            )}
-                        </div>
-                    </CardContent>
-                </Card>
-            )}
         </div>
     )
 }
