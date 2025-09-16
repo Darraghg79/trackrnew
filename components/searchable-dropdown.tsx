@@ -45,9 +45,8 @@ export const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
         <button
           type="button"
           onClick={() => setOpen(!open)}
-          className={`w-full min-h-[44px] px-3 py-2 text-left border rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-            error ? "border-red-500" : "border-gray-300"
-          } ${className || ""}`}
+          className={`w-full min-h-[44px] px-3 py-2 text-left border rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${error ? "border-red-500" : "border-gray-300"
+            } ${className || ""}`}
         >
           {value || placeholder}
           <span className="absolute right-3 top-1/2 transform -translate-y-1/2">🔍</span>
@@ -64,9 +63,9 @@ export const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
             {filteredOptions.length === 0 ? (
               <div className="p-2 text-gray-500">No options found</div>
             ) : (
-              filteredOptions.map((option) => (
+              filteredOptions.map((option, index) => (
                 <button
-                  key={option}
+                  key={`${option}-${index}`}
                   type="button"
                   onClick={() => selectOption(option)}
                   className="w-full p-2 text-left hover:bg-gray-100 min-h-[44px] flex items-center"

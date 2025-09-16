@@ -1,5 +1,6 @@
 import React from 'react'
 import { Button } from './ui/button'
+import type { DropZone } from '@/types/dropzone'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 
 /**
@@ -52,6 +53,7 @@ interface InvoiceSettings {
 interface InvoiceDetailViewProps {
     invoice: Invoice
     invoiceSettings: InvoiceSettings
+    dropZones: DropZone[]
     onBack: () => void
     onLock: () => void
     onSend: () => void
@@ -62,12 +64,17 @@ interface InvoiceDetailViewProps {
 export function InvoiceDetailView({
     invoice,
     invoiceSettings,
+    dropZones = [],  // Add this line
     onBack,
     onLock,
     onSend,
     onDownloadPDF,
     onPreviewPDF
 }: InvoiceDetailViewProps) {
+
+    // Find the dropzone address
+    const dropZoneData = dropZones.find(dz => dz.name === invoice.dropZone)
+    const dropZoneAddress = dropZoneData?.address || ''
 
     // ============================================
     // Utility Functions
@@ -159,61 +166,67 @@ export function InvoiceDetailView({
                 </div>
 
                 {/* Invoice Header Card */}
-                <Card className="mb-6">
-                    <CardHeader>
-                        <div className="flex justify-between">
-                            <div>
-                                <CardTitle className="text-2xl">
-                                    Invoice #{invoice.invoiceNumber}
-                                </CardTitle>
-                                <p className="text-gray-600 mt-2">{invoice.dropZone}</p>
-                                {invoice.status === 'draft' && (
-                                    <p className="text-sm text-orange-600 mt-1">
-                                        ⚠️ Draft - Not yet finalized
-                                    </p>
-                                )}
-                            </div>
-                            <div className="text-right">
-                                <p className="text-3xl font-bold text-blue-600">
-                                    {formatCurrency(totalWithTax)}
-                                </p>
-                                <p className="text-sm text-gray-500 mt-1">
-                                    Created: {formatDate(invoice.dateCreated)}
-                                </p>
-                                {invoice.dateLocked && (
-                                    <p className="text-sm text-gray-500">
-                                        Locked: {formatDate(invoice.dateLocked)}
-                                    </p>
-                                )}
-                                {invoice.dateSent && (
-                                    <p className="text-sm text-gray-500">
-                                        Sent: {formatDate(invoice.dateSent)}
-                                    </p>
-                                )}
-                                {invoice.datePaid && (
-                                    <p className="text-sm text-gray-500">
-                                        Paid: {formatDate(invoice.datePaid)}
-                                    </p>
-                                )}
-                            </div>
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                            <div>
-                                <p className="font-medium text-gray-700 mb-1">Bill From:</p>
-                                <p className="font-medium">{invoiceSettings.instructorInfo.name}</p>
-                                <p className="text-gray-600">{invoiceSettings.instructorInfo.address}</p>
-                            </div>
-                            <div>
-                                <p className="font-medium text-gray-700 mb-1">Payment Details:</p>
-                                <div className="font-mono text-xs bg-gray-50 p-2 rounded mt-1 break-all">
-                                    {invoiceSettings.instructorInfo.bankDetails}
-                                </div>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
+<Card className="mb-6">
+    <CardHeader>
+        <div className="flex justify-between">
+            <div>
+                <CardTitle className="text-2xl">
+                    Invoice #{invoice.invoiceNumber}
+                </CardTitle>
+                {invoice.status === 'draft' && (
+                    <p className="text-sm text-orange-600 mt-2">
+                        ⚠️ Draft - Not yet finalized
+                    </p>
+                )}
+            </div>
+            <div className="text-right">
+                <p className="text-3xl font-bold text-blue-600">
+                    {formatCurrency(totalWithTax)}
+                </p>
+                <p className="text-sm text-gray-500 mt-1">
+                    Created: {formatDate(invoice.dateCreated)}
+                </p>
+                {invoice.dateLocked && (
+                    <p className="text-sm text-gray-500">
+                        Locked: {formatDate(invoice.dateLocked)}
+                    </p>
+                )}
+                {invoice.dateSent && (
+                    <p className="text-sm text-gray-500">
+                        Sent: {formatDate(invoice.dateSent)}
+                    </p>
+                )}
+                {invoice.datePaid && (
+                    <p className="text-sm text-gray-500">
+                        Paid: {formatDate(invoice.datePaid)}
+                    </p>
+                )}
+            </div>
+        </div>
+    </CardHeader>
+    <CardContent>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            <div>
+                <p className="font-medium text-gray-700 mb-1">Bill To:</p>
+                <p className="font-medium">{invoice.dropZone}</p>
+                {dropZoneAddress && (
+                    <p className="text-gray-600">{dropZoneAddress}</p>
+                )}
+            </div>
+            <div>
+                <p className="font-medium text-gray-700 mb-1">Bill From:</p>
+                <p className="font-medium">{invoiceSettings.instructorInfo.name}</p>
+                <p className="text-gray-600">{invoiceSettings.instructorInfo.address}</p>
+            </div>
+        </div>
+        <div className="mt-4 pt-4 border-t">
+            <p className="font-medium text-gray-700 mb-1">Payment Details:</p>
+            <div className="font-mono text-xs bg-gray-50 p-2 rounded mt-1 break-all">
+                {invoiceSettings.instructorInfo.bankDetails}
+            </div>
+        </div>
+    </CardContent>
+</Card>
 
                 {/* Services Summary Card */}
                 <Card className="mb-6">

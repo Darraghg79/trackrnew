@@ -4,16 +4,30 @@ import type React from "react"
 import { useState, useMemo } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { JumpStatistics } from "@/components/jump-statistics"
-import { JumpMap } from "@/components/jump-map"
-import { WorkReports } from "@/components/work-reports"
-import { SummaryIcon } from "@/components/icons/summary-icon"
-import { JumpsIcon } from "@/components/icons/jumps-icon"
-import { WorkJumpsIcon } from "@/components/icons/work-jumps-icon"
-import type { JumpRecord } from "@/types/jump-record"
+import { ChevronRight, ArrowLeft } from "lucide-react"
+import type { JumpRecord } from "@/types/jumpRecord"
 import type { DropZone } from "@/types/dropzone"
 import type { InvoiceSettings } from "@/types/invoice"
-import type { AppSettings } from "@/types/settings"
+import { Dashboard } from "@/components/dashboard"
+import { JumpStatistics } from "@/components/jump-statistics"
+import { JumpLocations } from "@/components/jump-locations"
+import { WorkReports } from "@/components/work-reports"
+import { JumpListView } from "@/components/jump-list-view"
+
+// Import AppSettings from your types or define here
+interface AppSettings {
+  units: string
+  dateFormat: string
+  theme: string
+  currentJumpNumber: number
+  currentFreefallTime: number
+  freefallTimeAuditLog?: any[]
+  jumpCountAuditLog?: any[]
+  instructorInfo: {
+    name: string
+    address: string
+  }
+}
 
 interface SummaryTabProps {
   jumps: JumpRecord[]
@@ -30,194 +44,171 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
   appSettings,
   onWorkJumpsClick,
 }) => {
-  const [activeView, setActiveView] = useState<"overview" | "statistics" | "map" | "work-reports">("overview")
+  const [activeView, setActiveView] = useState <
+    "dashboard" | "reports" | "statistics" | "locations" | "work" | "jumplist"
+  >("dashboard")
+  const [previousView, setPreviousView] = useState<
+    "dashboard" | "reports" | "statistics" | "locations" | "work"
+  >("reports")
+  const [filteredJumps, setFilteredJumps] = useState<JumpRecord[]>([])
+  const [jumpListTitle, setJumpListTitle] = useState("")
 
-  // Calculate summary statistics
-  const stats = useMemo(() => {
-    const now = new Date()
-    const currentMonth = now.getMonth()
-    const currentYear = now.getFullYear()
-
-    const jumpsThisMonth = jumps.filter((jump) => {
-      const jumpDate = new Date(jump.date)
-      return jumpDate.getMonth() === currentMonth && jumpDate.getFullYear() === currentYear
-    })
-
-    const workJumps = jumps.filter((jump) => jump.workJump)
-    const workJumpsThisMonth = workJumps.filter((jump) => {
-      const jumpDate = new Date(jump.date)
-      return jumpDate.getMonth() === currentMonth && jumpDate.getFullYear() === currentYear
-    })
-
-    const uniqueDropZones = new Set(jumps.map((jump) => jump.dropZone))
-    const uniqueAircraft = new Set(jumps.map((jump) => jump.aircraft))
-
-    return {
-      totalJumps: jumps.length,
-      jumpsThisMonth: jumpsThisMonth.length,
-      totalDropZones: uniqueDropZones.size,
-      totalAircraft: uniqueAircraft.size,
-      totalWorkJumps: workJumps.length,
-      workJumpsThisMonth: workJumpsThisMonth.length,
+  const changeView = (newView: "dashboard" | "reports" | "statistics" | "locations" | "work" | "jumplist") => {
+    if (newView !== "jumplist") {
+      setPreviousView(activeView as any)
     }
-  }, [jumps])
+    setActiveView(newView)
+  }
 
-  const renderOverview = () => (
-    <div className="space-y-6">
-      {/* Dashboard Tiles */}
-      <div className="grid grid-cols-2 gap-4">
-        <Card className="bg-white">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Total Jumps</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.totalJumps}</p>
-              </div>
-              <JumpsIcon className="w-8 h-8 text-blue-600" />
+  const handleViewJumpList = (jumps: JumpRecord[], title: string) => {
+    // Store current view before switching to jumplist
+    setPreviousView(activeView as any)
+    setFilteredJumps(jumps)
+    setJumpListTitle(title)
+    setActiveView("jumplist")
+  }
+
+  const renderContent = () => {
+    switch (activeView) {
+      case "dashboard":
+        return (
+          <Dashboard
+            jumps={jumps}
+            appSettings={appSettings}
+            onNavigateToReports={() => changeView("reports")}
+            onViewJumpList={handleViewJumpList}
+          />
+        )
+
+      case "reports":
+        return (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold">Reports</h2>
+              <Button onClick={() => changeView("dashboard")} variant="ghost" size="sm">
+                <ArrowLeft className="w-4 h-4 mr-2" /> Back
+              </Button>
             </div>
-          </CardContent>
-        </Card>
 
-        <Card className="bg-white">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">This Month</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.jumpsThisMonth}</p>
-              </div>
-              <JumpsIcon className="w-8 h-8 text-green-600" />
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => changeView("statistics")}
+              onKeyDown={(e) => e.key === 'Enter' && changeView("statistics")}
+              className="cursor-pointer"
+            >
+              <Card className="hover:shadow-md transition-shadow">
+                <CardContent className="p-4">
+                  <h3 className="font-medium text-blue-600">Jump Statistics</h3>
+                  <p className="text-sm text-gray-600">View jumps by year, location, type, and more</p>
+                </CardContent>
+              </Card>
             </div>
-          </CardContent>
-        </Card>
 
-        <Card className="bg-white">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Drop Zones</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.totalDropZones}</p>
-              </div>
-              <SummaryIcon className="w-8 h-8 text-purple-600" />
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => changeView("locations")}
+              onKeyDown={(e) => e.key === 'Enter' && changeView("locations")}
+              className="cursor-pointer"
+            >
+              <Card className="hover:shadow-md transition-shadow">
+                <CardContent className="p-4">
+                  <h3 className="font-medium text-green-600">Jump Locations</h3>
+                  <p className="text-sm text-gray-600">Explore your jumps by continent, country, and dropzone</p>
+                </CardContent>
+              </Card>
             </div>
-          </CardContent>
-        </Card>
 
-        <Card className="bg-white">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Aircraft</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.totalAircraft}</p>
-              </div>
-              <SummaryIcon className="w-8 h-8 text-orange-600" />
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => changeView("work")}
+              onKeyDown={(e) => e.key === 'Enter' && changeView("work")}
+              className="cursor-pointer"
+            >
+              <Card className="hover:shadow-md transition-shadow">
+                <CardContent className="p-4">
+                  <h3 className="font-medium text-purple-600">Work Reports</h3>
+                  <p className="text-sm text-gray-600">Analyze your work jumps and revenue</p>
+                </CardContent>
+              </Card>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        )
 
-        <Card className="bg-white">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Work Jumps</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.totalWorkJumps}</p>
-              </div>
-              <WorkJumpsIcon className="w-8 h-8 text-red-600" />
-            </div>
-          </CardContent>
-        </Card>
+      case "statistics":
+        return (
+          <JumpStatistics
+            jumps={jumps}
+            dropZones={dropZones}
+            onBack={() => changeView("reports")}
+            onViewJumpList={handleViewJumpList}
+          />
+        )
 
-        <Card className="bg-white">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Work This Month</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.workJumpsThisMonth}</p>
-              </div>
-              <WorkJumpsIcon className="w-8 h-8 text-yellow-600" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      case "locations":
+        return (
+          <JumpLocations
+            jumps={jumps}
+            dropZones={dropZones}
+            onBack={() => changeView("reports")}
+            onViewJumpList={handleViewJumpList}
+          />
+        )
 
-      {/* Navigation Buttons */}
-      <div className="space-y-3">
-        <Button
-          onClick={() => setActiveView("statistics")}
-          className="w-full bg-white hover:bg-gray-50 text-gray-900 border border-gray-200 justify-start"
-          variant="outline"
-        >
-          <JumpsIcon className="w-5 h-5 mr-3 text-blue-600" />
-          Jump Statistics
-        </Button>
+      case "work":
+        return (
+          <WorkReports
+            workJumps={jumps.filter(j => j.workJump)}
+            invoiceSettings={invoiceSettings}
+            onBack={() => changeView("reports")}
+            onViewJumpList={handleViewJumpList}
+          />
+        )
 
-        <Button
-          onClick={() => setActiveView("map")}
-          className="w-full bg-white hover:bg-gray-50 text-gray-900 border border-gray-200 justify-start"
-          variant="outline"
-        >
-          <SummaryIcon className="w-5 h-5 mr-3 text-green-600" />
-          Jump Map
-        </Button>
+      case "jumplist":
+        return (
+          <JumpListView
+            jumps={filteredJumps}
+            title={jumpListTitle}
+            onBack={() => setActiveView(previousView)}
+          />
+        )
 
-        <Button
-          onClick={() => setActiveView("work-reports")}
-          className="w-full bg-white hover:bg-gray-50 text-gray-900 border border-gray-200 justify-start"
-          variant="outline"
-        >
-          <WorkJumpsIcon className="w-5 h-5 mr-3 text-red-600" />
-          Work Reports
-        </Button>
-      </div>
-    </div>
-  )
-
-  const renderStatistics = () => (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold text-gray-900">Jump Statistics</h2>
-        <Button onClick={() => setActiveView("overview")} variant="outline" size="sm">
-          ← Back
-        </Button>
-      </div>
-      <JumpStatistics jumps={jumps} appSettings={appSettings} />
-    </div>
-  )
-
-  const renderMap = () => (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold text-gray-900">Jump Map</h2>
-        <Button onClick={() => setActiveView("overview")} variant="outline" size="sm">
-          ← Back
-        </Button>
-      </div>
-      <JumpMap jumps={jumps} dropZones={dropZones} />
-    </div>
-  )
-
-  const renderWorkReports = () => (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold text-gray-900">Work Reports</h2>
-        <Button onClick={() => setActiveView("overview")} variant="outline" size="sm">
-          ← Back
-        </Button>
-      </div>
-      <WorkReports workJumps={jumps.filter((jump) => jump.workJump)} invoiceSettings={invoiceSettings} />
-    </div>
-  )
+      default:
+        return null
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 pb-24">
       <div className="max-w-md mx-auto">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Summary</h1>
+          <h1 className="text-2xl font-bold text-gray-900">
+            {activeView === "dashboard" ? "Summary" :
+              activeView === "reports" ? "Reports" :
+                ""}
+          </h1>
+          <div className="flex gap-2">
+            <Button
+              variant={activeView.includes("dashboard") ? "default" : "outline"}
+              size="sm"
+              onClick={() => changeView("dashboard")}
+            >
+              Dashboard
+            </Button>
+            <Button
+              variant={activeView !== "dashboard" ? "default" : "outline"}
+              size="sm"
+              onClick={() => changeView("reports")}
+            >
+              Reports
+            </Button>
+          </div>
         </div>
 
-        {activeView === "overview" && renderOverview()}
-        {activeView === "statistics" && renderStatistics()}
-        {activeView === "map" && renderMap()}
-        {activeView === "work-reports" && renderWorkReports()}
+        {renderContent()}
       </div>
     </div>
   )

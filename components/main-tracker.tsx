@@ -29,6 +29,8 @@ export function MainTracker() {
   const [showForm, setShowForm] = useState(false)
   const [editingJump, setEditingJump] = useState<number | null>(null)
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [jumpFilter, setJumpFilter] = useState<'all' | 'work' | 'personal'>('all')
 
   // ============================================
   // Signature State
@@ -46,11 +48,11 @@ export function MainTracker() {
       jumpNumber: 1,
       date: new Date().toISOString(),
       dropZone: "Irish Parachute Club",
-      aircraft: "PAC 750XL",
-      jumpType: "Tandem",
+      aircraft: "Cessna 206",
+      jumpType: "AFF",
       workJump: true,
-      customerName: "Test Customer",
-      invoiceItems: ["Tandem", "Handcam"],
+      customerName: "DG1",
+      invoiceItems: ["Tandem"],
       invoicedServices: [], // Services that have been permanently invoiced
       pendingInvoiceServices: [], // Services in a draft invoice
       totalRate: 70,
@@ -58,9 +60,30 @@ export function MainTracker() {
       deploymentAltitude: 3500,
       freefallTime: 47,
       gearUsed: [],
-      notes: "Test work jump",
+      notes: "",
       // Enhanced invoice tracking
       invoiceIds: [], // Array of all invoices this jump is part of
+      invoiceStatus: 'unbilled'
+    },
+    {
+      id: 'jump-2',
+      jumpNumber: 2,
+      date: new Date().toISOString(),
+      dropZone: "Irish Parachute Club",
+      aircraft: "Cessna 206",
+      jumpType: "AFF",
+      workJump: false,
+      customerName: "",
+      invoiceItems: [],
+      invoicedServices: [],
+      pendingInvoiceServices: [],
+      totalRate: 0,
+      exitAltitude: 13000,
+      deploymentAltitude: 3500,
+      freefallTime: 47,
+      gearUsed: [],
+      notes: "",
+      invoiceIds: [],
       invoiceStatus: 'unbilled'
     }
   ])
@@ -137,20 +160,20 @@ export function MainTracker() {
       // If no jumps exist, use settings value + 1
       return appSettings.currentJumpNumber + 1
     }
-    
+
     // Get all existing jump numbers and sort them
     const existingNumbers = savedJumps
       .map(j => j.jumpNumber)
       .sort((a, b) => a - b)
-    
+
     const highestExisting = existingNumbers[existingNumbers.length - 1]
-    
+
     // If settings indicates we should be at a higher number, use it
     // This handles the case where user manually sets a high number in settings
     if (appSettings.currentJumpNumber >= highestExisting) {
       return appSettings.currentJumpNumber + 1
     }
-    
+
     // Only look for gaps if we're not jumping ahead via settings
     // Check for gaps in the sequence
     for (let i = 1; i <= highestExisting; i++) {
@@ -158,7 +181,7 @@ export function MainTracker() {
         return i // Return the first gap found
       }
     }
-    
+
     // No gaps found, return the next number after the highest
     return highestExisting + 1
   }
@@ -219,7 +242,7 @@ export function MainTracker() {
         signature: undefined // No signature on new jumps
       }
       setSavedJumps([...savedJumps, newJump])
-      
+
       // Update settings if this jump number is higher than current setting
       if (newJump.jumpNumber > appSettings.currentJumpNumber) {
         setAppSettings(prev => ({
@@ -227,7 +250,7 @@ export function MainTracker() {
           currentJumpNumber: newJump.jumpNumber
         }))
       }
-      
+
       console.log('New jump saved:', newJump)
     }
 
@@ -240,11 +263,11 @@ export function MainTracker() {
     setShowForm(true)
   }
 
-const handleDeleteJump = (index: number) => {
+  const handleDeleteJump = (index: number) => {
     if (confirm('Are you sure you want to delete this jump?')) {
       const updatedJumps = savedJumps.filter((_, i) => i !== index)
       setSavedJumps(updatedJumps)
-      
+
       // Update settings when deleting jumps
       if (updatedJumps.length === 0) {
         // No jumps left, reset to 0
@@ -263,6 +286,29 @@ const handleDeleteJump = (index: number) => {
           }))
         }
       }
+    }
+  }
+
+  const handleDuplicateJump = (index: number) => {
+    const jumpToDuplicate = savedJumps[index]
+    const newJump = {
+      ...jumpToDuplicate,
+      id: `jump-${Date.now()}`,
+      jumpNumber: getNextJumpNumber(),
+      date: new Date().toISOString(),
+      invoiceStatus: 'unbilled' as const,
+      invoiceIds: [],
+      invoicedServices: [],
+      pendingInvoiceServices: [],
+      signature: undefined
+    }
+    setSavedJumps([...savedJumps, newJump])
+
+    if (newJump.jumpNumber > appSettings.currentJumpNumber) {
+      setAppSettings(prev => ({
+        ...prev,
+        currentJumpNumber: newJump.jumpNumber
+      }))
     }
   }
 
@@ -748,19 +794,11 @@ const handleDeleteJump = (index: number) => {
 
         {/* Jumps Tab */}
         {activeTab === 'jumps' && (
-          <div>
-            <h1 className="text-3xl font-bold text-center py-8">TrackR</h1>
-            <p className="text-center text-gray-600 mb-8">Jump, Track, Get Paid</p>
-
-            <div className="space-y-3 mb-6">
-              <Button
-                onClick={() => setShowForm(true)}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                Add New Jump
-              </Button>
-
-              {savedJumps.length > 0 && (
+          <div className="min-h-screen bg-gray-50">
+            {/* Header with Title and Buttons */}
+            <div className="bg-white px-4 pt-6 pb-4">
+              <div className="flex items-center justify-between mb-4">
+                <h1 className="text-3xl font-bold">Jump Log</h1>
                 <div className="flex gap-2">
                   <Button
                     onClick={() => {
@@ -769,152 +807,287 @@ const handleDeleteJump = (index: number) => {
                         setSelectedJumpsForSigning([])
                       }
                     }}
-                    variant={isSelectMode ? "default" : "outline"}
-                    className={isSelectMode ? "flex-1 bg-green-600 hover:bg-green-700" : "flex-1"}
+                    variant="outline"
+                    className={`px-6 py-2 ${isSelectMode ? "bg-gray-100" : ""}`}
                   >
-                    {isSelectMode ? "Cancel Selection" : "Select Jumps to Sign"}
+                    {isSelectMode ? "Cancel" : "Sign"}
                   </Button>
-
-                  {isSelectMode && (
-                    <>
-                      <Button
-                        onClick={handleSelectAllJumps}
-                        variant="outline"
-                        className="flex-1"
-                      >
-                        {selectedJumpsForSigning.length === savedJumps.length ? "Deselect All" : "Select All"}
-                      </Button>
-                      <Button
-                        onClick={handleStartSigning}
-                        className="flex-1 bg-green-600 hover:bg-green-700 text-white"
-                        disabled={selectedJumpsForSigning.length === 0}
-                      >
-                        Sign Selected ({selectedJumpsForSigning.length})
-                      </Button>
-                    </>
-                  )}
+                  <Button
+                    onClick={() => setShowForm(true)}
+                    className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    Add
+                  </Button>
                 </div>
-              )}
+              </div>
+
+              {/* Search Bar */}
+              <div className="relative mb-4">
+                <input
+                  type="text"
+                  placeholder="Search jumps..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full px-4 py-3 pl-12 border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white"
+                />
+                <svg
+                  className="absolute left-4 top-3.5 w-5 h-5 text-gray-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                  />
+                </svg>
+              </div>
+
+              {/* Filter Tabs */}
+              <div className="flex gap-8 border-b border-gray-200">
+                <button
+                  onClick={() => setJumpFilter('all')}
+                  className={`pb-3 font-medium transition-colors ${jumpFilter === 'all'
+                      ? 'text-blue-600 border-b-2 border-blue-600'
+                      : 'text-gray-500'
+                    }`}
+                >
+                  All
+                </button>
+                <button
+                  onClick={() => setJumpFilter('work')}
+                  className={`pb-3 font-medium transition-colors ${jumpFilter === 'work'
+                      ? 'text-blue-600 border-b-2 border-blue-600'
+                      : 'text-gray-500'
+                    }`}
+                >
+                  Work
+                </button>
+                <button
+                  onClick={() => setJumpFilter('personal')}
+                  className={`pb-3 font-medium transition-colors ${jumpFilter === 'personal'
+                      ? 'text-blue-600 border-b-2 border-blue-600'
+                      : 'text-gray-500'
+                    }`}
+                >
+                  Personal
+                </button>
+              </div>
             </div>
 
-            {savedJumps.length > 0 ? (
-              <div>
-                <p className="text-sm text-gray-600 mb-4">
-                  Total: {savedJumps.length} jumps
-                  ({savedJumps.filter(j => j.workJump).length} work,
-                  {savedJumps.filter(j => !j.workJump).length} fun)
-                  {savedJumps.filter(j => j.signature).length > 0 &&
-                    ` • ${savedJumps.filter(j => j.signature).length} signed`}
-                </p>
-                <div className="space-y-3">
-                  {savedJumps.map((jump, index) => (
-                    <div
-                      key={jump.id}
-                      className={`bg-white p-4 rounded-lg shadow-sm border ${isSelectMode && selectedJumpsForSigning.includes(jump.jumpNumber)
-                        ? 'border-green-500 bg-green-50'
-                        : ''
-                        }`}
-                      onClick={() => {
-                        if (isSelectMode) {
-                          handleToggleJumpSelection(jump.jumpNumber)
-                        }
-                      }}
-                      style={{ cursor: isSelectMode ? 'pointer' : 'default' }}
-                    >
-                      <div className="flex justify-between items-start mb-2">
-                        <div className="flex items-center gap-2">
-                          {isSelectMode && (
-                            <input
-                              type="checkbox"
-                              checked={selectedJumpsForSigning.includes(jump.jumpNumber)}
-                              onChange={() => handleToggleJumpSelection(jump.jumpNumber)}
-                              onClick={(e) => e.stopPropagation()}
-                              className="w-4 h-4 text-green-600"
-                            />
-                          )}
-                          <span className="font-medium">Jump #{jump.jumpNumber}</span>
-                          {jump.signature && (
-                            <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
-                              ✓ Signed
-                            </span>
-                          )}
-                        </div>
-                        {!isSelectMode && (
-                          <div className="space-x-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleEditJump(index)}
-                              className="text-blue-600"
-                            >
-                              Edit
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDeleteJump(index)}
-                              className="text-red-600"
-                            >
-                              Delete
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                      <div className="text-sm text-gray-600">
-                        <p>{jump.dropZone} • {jump.jumpType}</p>
-                        {jump.workJump ? (
-                          <div>
-                            <p className="text-blue-600 mt-1">
-                              💼 Work Jump: {jump.customerName}
-                            </p>
-                            {jump.invoiceStatus && jump.invoiceStatus !== 'unbilled' && (
-                              <p className={`text-xs mt-1 ${jump.invoiceStatus === 'sent' ? 'text-green-600' :
-                                jump.invoiceStatus === 'locked' ? 'text-orange-600' :
-                                  jump.invoiceStatus === 'draft' ? 'text-yellow-600' :
-                                    'text-gray-600'
-                                }`}>
-                                Invoice Status: {jump.invoiceStatus}
-                              </p>
-                            )}
-                            {jump.invoiceItems && jump.invoiceItems.length > 0 && (
-                              <div className="text-xs text-gray-500">
-                                <p>Services: {jump.invoiceItems.join(', ')}</p>
-                                {jump.invoicedServices && jump.invoicedServices.length > 0 && (
-                                  <p className="text-green-600">
-                                    Invoiced: {jump.invoicedServices.join(', ')}
-                                  </p>
-                                )}
-                                {jump.pendingInvoiceServices && jump.pendingInvoiceServices.length > 0 && (
-                                  <p className="text-yellow-600">
-                                    Pending: {jump.pendingInvoiceServices.join(', ')}
-                                  </p>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <p className="text-green-600 mt-1">🎉 Fun Jump</p>
-                        )}
-                        {jump.signature && (
-                          <p className="text-xs text-gray-500 mt-1">
-                            Signed: {new Date(jump.signature.signedDate).toLocaleDateString()} •
-                            Licence: {jump.signature.licenceNumber}
-                          </p>
-                        )}
-                        {jump.notes && (
-                          <p className="text-gray-500 mt-1 italic">{jump.notes}</p>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+            {/* Selection Mode Actions */}
+            {isSelectMode && (
+              <div className="bg-white px-4 py-3 border-b border-gray-200">
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleSelectAllJumps}
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                  >
+                    {selectedJumpsForSigning.length === savedJumps.length ? "Deselect All" : "Select All"}
+                  </Button>
+                  <Button
+                    onClick={handleStartSigning}
+                    size="sm"
+                    className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                    disabled={selectedJumpsForSigning.length === 0}
+                  >
+                    Sign Selected ({selectedJumpsForSigning.length})
+                  </Button>
                 </div>
               </div>
-            ) : (
-              <div className="text-center py-12 text-gray-500">
-                <p>No jumps logged yet</p>
-                <p className="text-sm mt-2">Add your first jump to get started!</p>
-              </div>
             )}
+
+            {/* Jump Cards */}
+            <div className="px-4 py-4">
+              {(() => {
+                // Helper function for date formatting
+                const formatJumpDate = (date: string | Date) => {
+                  const d = new Date(date)
+                  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+                  const day = d.getDate().toString().padStart(2, '0')
+                  const month = months[d.getMonth()]
+                  const year = d.getFullYear()
+                  return `${day}-${month}-${year}`
+                }
+
+                // Filter jumps based on search query
+                let filteredJumps = savedJumps.filter(jump => {
+                  if (!searchQuery) return true
+
+                  const searchLower = searchQuery.toLowerCase()
+
+                  return (
+                    jump.jumpNumber.toString().includes(searchLower) ||
+                    jump.dropZone?.toLowerCase().includes(searchLower) ||
+                    jump.aircraft?.toLowerCase().includes(searchLower) ||
+                    jump.jumpType?.toLowerCase().includes(searchLower) ||
+                    jump.customerName?.toLowerCase().includes(searchLower) ||
+                    jump.notes?.toLowerCase().includes(searchLower) ||
+                    jump.invoiceItems?.some(item => item.toLowerCase().includes(searchLower)) ||
+                    jump.gearUsed?.some(gear => gear.toLowerCase().includes(searchLower)) ||
+                    (jump.signature?.licenceNumber && jump.signature.licenceNumber.toLowerCase().includes(searchLower))
+                  )
+                })
+
+                // Apply filter tabs
+                if (jumpFilter === 'work') {
+                  filteredJumps = filteredJumps.filter(jump => jump.workJump === true)
+                } else if (jumpFilter === 'personal') {
+                  filteredJumps = filteredJumps.filter(jump => jump.workJump === false)
+                }
+
+                // Sort jumps by jump number only (highest first)
+                const sortedJumps = [...filteredJumps].sort((a, b) => {
+                  return b.jumpNumber - a.jumpNumber
+                })
+
+                if (sortedJumps.length > 0) {
+                  return (
+                    <>
+                      <div className="space-y-3">
+                        {sortedJumps.map((jump) => {
+                          const index = savedJumps.findIndex(j => j.id === jump.id)
+                          return (
+                            <div
+                              key={jump.id}
+                              className={`bg-white rounded-xl p-4 shadow-sm ${isSelectMode && selectedJumpsForSigning.includes(jump.jumpNumber)
+                                  ? 'ring-2 ring-green-500'
+                                  : ''
+                                }`}
+                              onClick={() => {
+                                if (isSelectMode) {
+                                  handleToggleJumpSelection(jump.jumpNumber)
+                                }
+                              }}
+                              style={{ cursor: isSelectMode ? 'pointer' : 'default' }}
+                            >
+                              <div className="flex items-start">
+                                {/* Jump Number */}
+                                <div className="flex-shrink-0 mr-4">
+                                  <div className="text-4xl font-bold">{jump.jumpNumber}</div>
+                                  <div className="text-sm text-gray-500 mt-1">
+                                    {formatJumpDate(jump.date)}
+                                  </div>
+                                </div>
+
+                                {/* Jump Details */}
+                                <div className="flex-1">
+                                  <div className="flex justify-between items-start">
+                                    <div className="flex-1">
+                                      <div className="font-semibold text-lg">{jump.dropZone}</div>
+                                      <div className="text-gray-600 text-sm">{jump.aircraft}</div>
+                                    </div>
+                                    {jump.signature && (
+                                      <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded ml-2">
+                                        ✓ Signed
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {/* Work Jump Badge */}
+                                  {jump.workJump && (
+                                    <div className="mt-3">
+                                      <div className="inline-block bg-blue-50 text-blue-700 px-3 py-1 rounded-md text-sm font-medium">
+                                        Work Jump: {jump.customerName}: {jump.invoiceItems?.join(', ')}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Jump Type */}
+                                  <div className="mt-3">
+                                    <div className="text-xs text-gray-500">Jump Type</div>
+                                    <div className="font-semibold">{jump.jumpType}</div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Action Icons */}
+                              {!isSelectMode && (
+                                <div className="flex justify-end gap-3 mt-4 pt-3 border-t border-gray-100">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleEditJump(index)
+                                    }}
+                                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                                    title="Edit"
+                                  >
+                                    <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                    </svg>
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleDuplicateJump(index)
+                                    }}
+                                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                                    title="Duplicate"
+                                  >
+                                    <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                    </svg>
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleDeleteJump(index)
+                                    }}
+                                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                                    title="Delete"
+                                  >
+                                    <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                  </button>
+                                </div>
+                              )}
+
+                              {/* Selection Checkbox */}
+                              {isSelectMode && (
+                                <div className="flex justify-center mt-4 pt-3 border-t border-gray-100">
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedJumpsForSigning.includes(jump.jumpNumber)}
+                                    onChange={() => handleToggleJumpSelection(jump.jumpNumber)}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="w-5 h-5 text-green-600 rounded"
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+
+                      {/* Footer Statistics */}
+                      <div className="text-center py-6 text-gray-600">
+                        <p>Showing {sortedJumps.length} of {savedJumps.length} jumps</p>
+                        <p className="text-sm mt-1">Next jump: #{nextAvailableJumpNumber}</p>
+                      </div>
+                    </>
+                  )
+                } else if (searchQuery || jumpFilter !== 'all') {
+                  return (
+                    <div className="text-center py-12 text-gray-500">
+                      <p>No jumps found</p>
+                      <p className="text-sm mt-2">Try adjusting your search or filters</p>
+                    </div>
+                  )
+                } else {
+                  return (
+                    <div className="text-center py-12 text-gray-500">
+                      <p>No jumps logged yet</p>
+                      <p className="text-sm mt-2">Tap Add to log your first jump!</p>
+                    </div>
+                  )
+                }
+              })()}
+            </div>
           </div>
         )}
 
@@ -943,6 +1116,7 @@ const handleDeleteJump = (index: number) => {
           <InvoiceDetailView
             invoice={selectedInvoice}
             invoiceSettings={invoiceSettings}
+            dropZones={dropZones}
             onBack={() => {
               setActiveTab('work')
               setSelectedInvoice(null)

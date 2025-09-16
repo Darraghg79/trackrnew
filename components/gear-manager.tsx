@@ -52,6 +52,7 @@ export const GearManager: React.FC<GearManagerProps> = ({
   const gearTypeOptions = [
     { value: "main", label: "Main Canopy" },
     { value: "reserve", label: "Reserve Canopy" },
+    { value: "Container", label: "Container" },
     { value: "aad", label: "AAD (Automatic Activation Device)" },
     { value: "other", label: "Other Equipment" },
   ]

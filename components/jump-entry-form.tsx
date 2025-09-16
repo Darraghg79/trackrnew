@@ -51,12 +51,12 @@ export const JumpEntryForm: React.FC<JumpEntryFormProps> = ({
   // Calculate freefall time based on altitude difference
   const calculateFreefallTime = (exitAlt: number, deployAlt: number): number => {
     if (!exitAlt || !deployAlt || deployAlt >= exitAlt) return 0
-    
+
     const altitudeDifference = exitAlt - deployAlt
-    
+
     // Convert to feet if using meters (1000ft = ~305m)
     const altInFeet = appSettings.units === "meters" ? altitudeDifference * 3.28084 : altitudeDifference
-    
+
     // First 1000ft = 10 seconds, then 5 seconds per 1000ft thereafter
     if (altInFeet <= 1000) {
       return Math.round((altInFeet / 1000) * 10)
@@ -79,7 +79,7 @@ export const JumpEntryForm: React.FC<JumpEntryFormProps> = ({
       const exitAlt = lastJumpData.exitAltitude
       const deployAlt = lastJumpData.deploymentAltitude
       const calculatedFreefallTime = calculateFreefallTime(exitAlt, deployAlt)
-      
+
       return {
         jumpNumber: nextJumpNumber,
         date: new Date(),
@@ -90,6 +90,8 @@ export const JumpEntryForm: React.FC<JumpEntryFormProps> = ({
         deploymentAltitude: deployAlt,
         freefallTime: calculatedFreefallTime,
         gearUsed: lastJumpData.gearUsed || [],
+        cutaway: false, // Always default to false for new jumps
+        landingDistance: 0, // Default to 0
         workJump: false,
         customerName: "",
         invoiceItems: [],
@@ -108,6 +110,8 @@ export const JumpEntryForm: React.FC<JumpEntryFormProps> = ({
       deploymentAltitude: 0,
       freefallTime: 0,
       gearUsed: [],
+      cutaway: false,
+      landingDistance: 0,
       workJump: false,
       customerName: "",
       invoiceItems: [],
@@ -132,12 +136,12 @@ export const JumpEntryForm: React.FC<JumpEntryFormProps> = ({
 
   const handleInputChange = (field: keyof JumpRecord, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
-    
+
     // Track if user manually modified freefall time
     if (field === 'freefallTime') {
       setUserModifiedFreefallTime(true)
     }
-    
+
     // Clear error when user starts typing
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: "" }))
@@ -146,6 +150,15 @@ export const JumpEntryForm: React.FC<JumpEntryFormProps> = ({
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {}
+
+    if (formData.date) {
+      const selectedDate = new Date(formData.date)
+      const today = new Date()
+      today.setHours(23, 59, 59, 999) // Set to end of today
+      if (selectedDate > today) {
+        newErrors.date = "Cannot log jumps for future dates"
+      }
+    }
 
     if (!formData.dropZone?.trim()) {
       newErrors.dropZone = "Drop zone is required"
@@ -262,6 +275,7 @@ export const JumpEntryForm: React.FC<JumpEntryFormProps> = ({
                     type="date"
                     value={formData.date ? formatDateForInput(formData.date) : ""}
                     onChange={(e) => handleInputChange("date", new Date(e.target.value))}
+                    max={formatDateForInput(new Date())}
                   />
                 </div>
               </div>
@@ -300,6 +314,30 @@ export const JumpEntryForm: React.FC<JumpEntryFormProps> = ({
                   error={errors.jumpType}
                 />
                 {errors.jumpType && <p className="text-red-500 text-xs mt-1">{errors.jumpType}</p>}
+              </div>
+
+              {/* Cutaway Toggle */}
+              <div className="flex items-center justify-between">
+                <Label htmlFor="cutaway">Cutaway</Label>
+                <Switch
+                  id="cutaway"
+                  checked={formData.cutaway || false}
+                  onCheckedChange={(checked) => handleInputChange("cutaway", checked)}
+                />
+              </div>
+
+              {/* Distance to Target */}
+              <div>
+                <Label htmlFor="landingDistance">
+                  Distance to Target ({appSettings.units === "feet" ? "ft" : "m"}) (optional)
+                </Label>
+                <Input
+                  id="landingDistance"
+                  type="number"
+                  value={formData.landingDistance || ""}
+                  onChange={(e) => handleInputChange("landingDistance", Number(e.target.value) || 0)}
+                  placeholder="0"
+                />
               </div>
             </CardContent>
           </Card>
