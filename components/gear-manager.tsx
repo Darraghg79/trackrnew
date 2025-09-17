@@ -11,10 +11,12 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { SearchableDropdown } from "@/components/searchable-dropdown"
 import { MultiSelectDropdown } from "@/components/multi-select-dropdown"
 import type { GearItem, GearGroup, GearServiceReminder, GearOption } from "@/types/gear"
+import type { JumpRecord } from "@/types/jump-record"
 
 interface GearManagerProps {
   gearItems: GearItem[]
   gearGroups: GearGroup[]
+  jumps?: JumpRecord[]
   onUpdateGearItems: (items: GearItem[]) => void
   onUpdateGearGroups: (groups: GearGroup[]) => void
   onUpdateGearOptions: (options: GearOption[]) => void
@@ -23,6 +25,7 @@ interface GearManagerProps {
 export const GearManager: React.FC<GearManagerProps> = ({
   gearItems,
   gearGroups,
+  jumps = [],
   onUpdateGearItems,
   onUpdateGearGroups,
   onUpdateGearOptions,
@@ -40,6 +43,7 @@ export const GearManager: React.FC<GearManagerProps> = ({
     type: "main" as const,
     requiresService: false,
     nextServiceDate: "",
+    previousJumps: 0,
     notes: "",
   })
 
@@ -146,6 +150,7 @@ export const GearManager: React.FC<GearManagerProps> = ({
       isActive: true,
       requiresService: newGear.requiresService,
       nextServiceDate: newGear.nextServiceDate ? new Date(newGear.nextServiceDate) : undefined,
+      previousJumps: Number(newGear.previousJumps) || 0,
       notes: newGear.notes.trim() || undefined,
       createdDate: new Date(),
     }
@@ -161,6 +166,7 @@ export const GearManager: React.FC<GearManagerProps> = ({
       type: "main",
       requiresService: false,
       nextServiceDate: "",
+      previousJumps: 0,
       notes: "",
     })
     setShowAddForm(false)
@@ -223,10 +229,11 @@ export const GearManager: React.FC<GearManagerProps> = ({
       nextServiceDate: newGear.nextServiceDate ? new Date(newGear.nextServiceDate) : undefined,
       lastServiceDate:
         newGear.nextServiceDate &&
-        editingGear.nextServiceDate &&
-        new Date(newGear.nextServiceDate) > editingGear.nextServiceDate
+          editingGear.nextServiceDate &&
+          new Date(newGear.nextServiceDate) > editingGear.nextServiceDate
           ? new Date()
           : editingGear.lastServiceDate,
+      previousJumps: Number(newGear.previousJumps) || 0,
       notes: newGear.notes.trim() || undefined,
     }
 
@@ -241,6 +248,7 @@ export const GearManager: React.FC<GearManagerProps> = ({
       type: "main",
       requiresService: false,
       nextServiceDate: "",
+      previousJumps: item.previousJumps || 0,
       notes: "",
     })
     setShowAddForm(false)
@@ -326,6 +334,29 @@ export const GearManager: React.FC<GearManagerProps> = ({
     }
   }
 
+  // Add this after the getServiceStatus function (around line 100)
+  const getTotalJumpsForGear = (gearItem: GearItem): number => {
+    // Note: You'll need to pass 'jumps' as a prop to GearManager
+    let loggedJumps = 0
+
+    // Count jumps from jump records
+    if (jumps) {
+      jumps.forEach((jump) => {
+        if (jump.gearUsed?.includes(gearItem.name)) {
+          // If reserve canopy, only count cutaways
+          if (gearItem.type === 'reserve') {
+            if (jump.cutaway === true) {
+              loggedJumps++
+            }
+          } else {
+            loggedJumps++
+          }
+        }
+      })
+    }
+
+    return (gearItem.previousJumps || 0) + loggedJumps
+  }
   const renderItemsTab = () => (
     <div className="space-y-4">
       {/* Add/Edit Form */}
@@ -352,22 +383,33 @@ export const GearManager: React.FC<GearManagerProps> = ({
                 placeholder="Optional"
               />
             </div>
-          </div>
-
-          <div>
-            <Label htmlFor="gearType">Equipment Type</Label>
-            <SearchableDropdown
-              value={getTypeLabel(newGear.type)}
-              onValueChange={(value) => {
-                const selectedType = gearTypeOptions.find((option) => option.label === value)
-                if (selectedType) {
-                  setNewGear((prev) => ({ ...prev, type: selectedType.value as any }))
-                }
-              }}
-              options={gearTypeOptions.map((option) => option.label)}
-              placeholder="Select equipment type"
-              label=""
-            />
+            <div>
+              <Label htmlFor="previousJumps">Previous Jumps</Label>
+              <Input
+                id="previousJumps"
+                type="number"
+                min="0"
+                value={newGear.previousJumps}
+                onChange={(e) => setNewGear((prev) => ({ ...prev, previousJumps: e.target.value }))}
+                placeholder="0"
+              />
+              <p className="text-xs text-gray-500 mt-1">Jumps on this gear before using this app</p>
+            </div>
+            <div>
+              <Label htmlFor="gearType">Equipment Type</Label>
+              <SearchableDropdown
+                value={getTypeLabel(newGear.type)}
+                onValueChange={(value) => {
+                  const selectedType = gearTypeOptions.find((option) => option.label === value)
+                  if (selectedType) {
+                    setNewGear((prev) => ({ ...prev, type: selectedType.value as any }))
+                  }
+                }}
+                options={gearTypeOptions.map((option) => option.label)}
+                placeholder="Select equipment type"
+                label=""
+              />
+            </div>
           </div>
 
           <div className="space-y-4 pt-4 border-t border-gray-200">
@@ -423,6 +465,7 @@ export const GearManager: React.FC<GearManagerProps> = ({
                   requiresService: false,
                   nextServiceDate: "",
                   notes: "",
+                  previousJumps: 0
                 })
               }}
               variant="outline"
@@ -469,6 +512,16 @@ export const GearManager: React.FC<GearManagerProps> = ({
                       </p>
                     )}
 
+                    {/* ADD THIS BLOCK - Display total jumps */}
+                    <p className="text-sm text-gray-600 mb-1">
+                      <span className="font-medium">Total Jumps:</span> {getTotalJumpsForGear(item)}
+                      {item.previousJumps > 0 && (
+                        <span className="text-xs text-gray-500 ml-1">
+                          ({item.previousJumps} previous + {getTotalJumpsForGear(item) - item.previousJumps} logged)
+                        </span>
+                      )}
+                    </p>
+
                     {serviceStatus && (
                       <div className={`inline-block px-2 py-1 rounded text-xs font-medium ${serviceStatus.color}`}>
                         {serviceStatus.text}
@@ -489,6 +542,7 @@ export const GearManager: React.FC<GearManagerProps> = ({
                           requiresService: item.requiresService,
                           nextServiceDate: item.nextServiceDate ? item.nextServiceDate.toISOString().split("T")[0] : "",
                           notes: item.notes || "",
+                          previousJumps: item.previousJumps || 0  // ADD THIS LINE
                         })
                         setShowAddForm(true)
                       }}
@@ -500,9 +554,8 @@ export const GearManager: React.FC<GearManagerProps> = ({
                     <Button
                       onClick={() => handleToggleActiveItem(item.id)}
                       variant="ghost"
-                      className={`px-2 py-1 h-auto text-sm ${
-                        item.isActive ? "text-orange-600 hover:text-orange-800" : "text-green-600 hover:text-green-800"
-                      }`}
+                      className={`px-2 py-1 h-auto text-sm ${item.isActive ? "text-orange-600 hover:text-orange-800" : "text-green-600 hover:text-green-800"
+                        }`}
                     >
                       {item.isActive ? "Archive" : "Activate"}
                     </Button>
@@ -626,9 +679,8 @@ export const GearManager: React.FC<GearManagerProps> = ({
                     <Button
                       onClick={() => handleToggleActiveGroup(group.id)}
                       variant="ghost"
-                      className={`px-2 py-1 h-auto text-sm ${
-                        group.isActive ? "text-orange-600 hover:text-orange-800" : "text-green-600 hover:text-green-800"
-                      }`}
+                      className={`px-2 py-1 h-auto text-sm ${group.isActive ? "text-orange-600 hover:text-orange-800" : "text-green-600 hover:text-green-800"
+                        }`}
                     >
                       {group.isActive ? "Archive" : "Activate"}
                     </Button>
@@ -708,9 +760,8 @@ export const GearManager: React.FC<GearManagerProps> = ({
         <div className="flex space-x-1 bg-gray-100 rounded-lg p-1">
           <button
             onClick={() => setActiveTab("items")}
-            className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${
-              activeTab === "items" ? "bg-white text-blue-700 shadow-sm" : "text-gray-600 hover:text-gray-800"
-            }`}
+            className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${activeTab === "items" ? "bg-white text-blue-700 shadow-sm" : "text-gray-600 hover:text-gray-800"
+              }`}
           >
             Items (
             {
@@ -722,9 +773,8 @@ export const GearManager: React.FC<GearManagerProps> = ({
           </button>
           <button
             onClick={() => setActiveTab("groups")}
-            className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${
-              activeTab === "groups" ? "bg-white text-blue-700 shadow-sm" : "text-gray-600 hover:text-gray-800"
-            }`}
+            className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${activeTab === "groups" ? "bg-white text-blue-700 shadow-sm" : "text-gray-600 hover:text-gray-800"
+              }`}
           >
             Groups (
             {
@@ -746,9 +796,8 @@ export const GearManager: React.FC<GearManagerProps> = ({
             <button
               key={filter.key}
               onClick={() => setActiveFilter(filter.key as any)}
-              className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${
-                activeFilter === filter.key ? "bg-white text-blue-700 shadow-sm" : "text-gray-600 hover:text-gray-800"
-              }`}
+              className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${activeFilter === filter.key ? "bg-white text-blue-700 shadow-sm" : "text-gray-600 hover:text-gray-800"
+                }`}
             >
               {filter.label}
             </button>

@@ -7,6 +7,7 @@ export interface GearItem {
   requiresService: boolean
   nextServiceDate?: Date
   lastServiceDate?: Date
+  previousJumps: number
   notes?: string
   createdDate: Date
   groupId?: string // Add group association

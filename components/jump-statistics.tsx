@@ -6,17 +6,19 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import type { JumpRecord } from "@/types/jumpRecord"
 import type { DropZone } from "@/types/dropzone"
-import { 
-  filterJumpsByYear, 
-  filterJumpsByDropZone, 
-  filterJumpsByType, 
+import type { GearItem } from "@/types/gear"  // ADD THIS IMPORT
+import {
+  filterJumpsByYear,
+  filterJumpsByDropZone,
+  filterJumpsByType,
   filterJumpsByAircraft,
-  filterJumpsByGear 
+  filterJumpsByGear
 } from "@/lib/jump-filters"
 
 interface JumpStatisticsProps {
   jumps: JumpRecord[]
   dropZones: DropZone[]
+  gearItems: GearItem[]
   onBack: () => void
   onViewJumpList: (jumps: JumpRecord[], title: string) => void
 }
@@ -27,11 +29,12 @@ interface StatBreakdown {
   percentage: number
 }
 
-export const JumpStatistics: React.FC<JumpStatisticsProps> = ({ 
-  jumps, 
-  dropZones, 
+export const JumpStatistics: React.FC<JumpStatisticsProps> = ({
+  jumps,
+  dropZones,
+  gearItems,  // ADD THIS TO DESTRUCTURING
   onBack,
-  onViewJumpList 
+  onViewJumpList
 }) => {
   const [activeBreakdown, setActiveBreakdown] = useState<string | null>("totalJumps")
   const [totalJumpsView, setTotalJumpsView] = useState<"year" | "dropzone" | "type" | "aircraft" | "gear" | null>(null)
@@ -113,26 +116,52 @@ export const JumpStatistics: React.FC<JumpStatisticsProps> = ({
       }))
       .sort((a, b) => b.count - a.count)
 
-    // By Gear
+    // By Gear (with reserve canopy cutaway logic and previous jumps)
     const gearCounts: Record<string, number> = {}
+
+    // First, add previous jumps for all gear items
+    gearItems?.forEach((gearItem) => {
+      if (gearItem.previousJumps > 0) {
+        // For reserve canopies, we don't add previous jumps to the count
+        // (assuming previous jumps on reserve means actual deployments)
+        if (gearItem.type !== 'reserve') {
+          gearCounts[gearItem.name] = gearItem.previousJumps
+        }
+      }
+    })
+
+    // Then count jumps from the log
     jumps.forEach((jump) => {
       if (jump.gearUsed && Array.isArray(jump.gearUsed)) {
-        jump.gearUsed.forEach((gear) => {
-          gearCounts[gear] = (gearCounts[gear] || 0) + 1
+        jump.gearUsed.forEach((gearName) => {
+          // Check if this is a reserve canopy
+          const gearItem = gearItems?.find(item => item.name === gearName)
+
+          // If it's a reserve canopy, only count if there was a cutaway
+          if (gearItem?.type === 'reserve') {
+            if (jump.cutaway === true) {
+              gearCounts[gearName] = (gearCounts[gearName] || 0) + 1
+            }
+          } else {
+            // For all other gear types, count normally
+            gearCounts[gearName] = (gearCounts[gearName] || 0) + 1
+          }
         })
       }
     })
+
+    // Convert gear counts to breakdown format
     breakdowns.gear = Object.entries(gearCounts)
       .map(([gear, count]) => ({
         label: gear,
         count,
-        percentage: (count / jumps.length) * 100,
+        percentage: jumps.length > 0 ? (count / jumps.length) * 100 : 0,
       }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 10)
 
     return breakdowns
-  }, [jumps])
+  }, [jumps, gearItems])  // ADD gearItems to dependencies
 
   const getBreakdownTitle = (view: string) => {
     switch (view) {
@@ -208,8 +237,8 @@ export const JumpStatistics: React.FC<JumpStatisticsProps> = ({
                     onClick={() => {
                       let filtered: JumpRecord[] = []
                       let title = ""
-                      
-                      switch(totalJumpsView) {
+
+                      switch (totalJumpsView) {
                         case "year":
                           filtered = filterJumpsByYear(jumps, item.label)
                           title = `Jumps in ${item.label}`
@@ -231,7 +260,7 @@ export const JumpStatistics: React.FC<JumpStatisticsProps> = ({
                           title = `Jumps using ${item.label}`
                           break
                       }
-                      
+
                       onViewJumpList(filtered, title)
                     }}
                   >
