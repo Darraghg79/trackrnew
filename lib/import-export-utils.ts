@@ -23,7 +23,7 @@ const CSV_HEADERS = [
     'workJump',
     'customerName',
     'invoiceItems',
-    'totalRate'
+    'rateAtTimeOfJump'
 ] as const
 
 // Template data for CSV download
