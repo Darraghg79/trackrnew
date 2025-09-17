@@ -13,6 +13,7 @@ import { JumpStatistics } from "@/components/jump-statistics"
 import { JumpLocations } from "@/components/jump-locations"
 import { WorkReports } from "@/components/work-reports"
 import { JumpListView } from "@/components/jump-list-view"
+import type { GearItem } from "@/types/gear"
 
 // Import AppSettings from your types or define here
 interface AppSettings {
@@ -32,6 +33,7 @@ interface AppSettings {
 interface SummaryTabProps {
   jumps: JumpRecord[]
   dropZones: DropZone[]
+  gearItems: GearItem[]
   invoiceSettings: InvoiceSettings
   appSettings: AppSettings
   onWorkJumpsClick?: (workJumps: JumpRecord[]) => void
@@ -40,6 +42,7 @@ interface SummaryTabProps {
 export const SummaryTab: React.FC<SummaryTabProps> = ({
   jumps,
   dropZones,
+  gearItems,
   invoiceSettings,
   appSettings,
   onWorkJumpsClick,
@@ -142,6 +145,7 @@ export const SummaryTab: React.FC<SummaryTabProps> = ({
           <JumpStatistics
             jumps={jumps}
             dropZones={dropZones}
+            gearItems={gearItems}
             onBack={() => changeView("reports")}
             onViewJumpList={handleViewJumpList}
           />

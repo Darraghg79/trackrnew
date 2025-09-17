@@ -248,7 +248,7 @@ export const GearManager: React.FC<GearManagerProps> = ({
       type: "main",
       requiresService: false,
       nextServiceDate: "",
-      previousJumps: item.previousJumps || 0,
+      previousJumps: 0,
       notes: "",
     })
     setShowAddForm(false)

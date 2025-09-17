@@ -150,12 +150,12 @@ export const JumpStatistics: React.FC<JumpStatisticsProps> = ({
       }
     })
 
-    // Convert gear counts to breakdown format
+    // Convert gear counts to breakdown format (no percentage for gear)
     breakdowns.gear = Object.entries(gearCounts)
       .map(([gear, count]) => ({
         label: gear,
         count,
-        percentage: jumps.length > 0 ? (count / jumps.length) * 100 : 0,
+        percentage: 0,  // Set to 0 - we won't display it for gear
       }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 10)
@@ -270,7 +270,9 @@ export const JumpStatistics: React.FC<JumpStatisticsProps> = ({
                     </div>
                     <div className="text-right">
                       <div className="font-bold text-gray-900 hover:text-blue-600">{item.count} jumps</div>
-                      <div className="text-sm text-gray-500">{item.percentage.toFixed(1)}%</div>
+                      {totalJumpsView !== 'gear' && (
+                        <div className="text-sm text-gray-500">{item.percentage.toFixed(1)}%</div>
+                      )}
                     </div>
                   </div>
                 ))}

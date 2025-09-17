@@ -1146,6 +1146,7 @@ export function MainTracker() {
           <SummaryTab
             jumps={savedJumps}
             dropZones={dropZones}
+            gearItems={gearItems}
             invoiceSettings={invoiceSettings}
             appSettings={appSettings}
           />
